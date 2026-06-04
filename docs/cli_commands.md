@@ -825,6 +825,7 @@ TX-delay tuning; see [`../README-flood-suppression.md`](../README-flood-suppress
 **Usage:**
 - `get outpath`
 - `set outpath <hop1_hex,hop2_hex,...>`
+- `set outpath direct`
 - `set outpath clear`
 - `set outpath flood`
 
@@ -835,6 +836,7 @@ TX-delay tuning; see [`../README-flood-suppression.md`](../README-flood-suppress
 - These commands require remote client context (they target the caller's ACL entry).
 - The path hash size is inferred from the hop hash width.
 - `outpath` overrides the primary direct route used for replies to the caller.
+- `direct` sets a zero-hop direct route for a caller reachable without repeaters.
 - `clear` forgets the current direct path and allows normal path discovery to repopulate it.
 - `flood` forces replies to use flood packets until the client logs in again.
 
