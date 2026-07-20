@@ -7,6 +7,7 @@ This document provides an overview of CLI commands which are specific to the MU 
 - [Enable or disable hardware Channel Activity Detection (CAD)](#enable-or-disable-hardware-channel-activity-detection)
 - [View or change the maximum direct-route resend attempts](#view-or-change-the-maximum-direct-route-resend-attempts)
 - [View or set the reply path override for the current remote client](#view-or-set-the-reply-path-override-for-the-current-remote-client)
+- [Wifi Companion Configuration via Rescue CLI](#wifi-companion-configuration-via-rescue-cli)
   
 ---
 ### Enable or disable hardware Channel Activity Detection
@@ -53,3 +54,14 @@ This document provides an overview of CLI commands which are specific to the MU 
 - `direct` sets a zero-hop direct route for a caller reachable without repeaters.
 - `clear` forgets the current direct path and allows normal path discovery to repopulate it.
 - `flood` forces replies to use flood packets until the client logs in again.
+
+---
+### Wifi Companion Configuration via Rescue CLI
+
+**Description:** Configure Wifi SSID and Password for a ESP32 companion via the rescue command line interface
+
+**Usage:**
+- `wifi_ssid <ssid>`
+- `wifi_pwd <pwd>`
+- `wifi_commit`
+- `wifi_clear`
