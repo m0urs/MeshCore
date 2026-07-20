@@ -1097,7 +1097,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.loop_detect = 1; // Minimal
   _prefs.path_hash_mode = 2; // 3 Bytes
   _prefs.agc_reset_interval = 0; // (x4!) = 0 SHOULD BE OFF because of special UFO features!
-  _prefs.flood_suppress = 1;          // redundancy-aware flood suppression ON by default (adaptive + static fallback)
+  _prefs.flood_suppress = 0;          // redundancy-aware flood suppression OFF by default, still experimental (adaptive + static fallback)
   _prefs.flood_suppress_snr_hi = 9;  // dB: strong overheard forward => counts double
   _prefs.flood_suppress_snr_lo = 0;  // dB: weak overheard forward => ignored (preserve edge)
   _prefs.flood_suppress_delay_x = 2; // extra TX-delay multiplier for central flood relays
