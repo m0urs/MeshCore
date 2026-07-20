@@ -6,6 +6,7 @@ This document provides an overview of CLI commands which are specific to the MU 
 
 - [Enable or disable hardware Channel Activity Detection (CAD)](#enable-or-disable-hardware-channel-activity-detection)
 - [View or change the maximum direct-route resend attempts](#view-or-change-the-maximum-direct-route-resend-attempts)
+- [View or set the reply path override for the current remote client](#view-or-set-the-reply-path-override-for-the-current-remote-client)
   
 ---
 ### Enable or disable hardware Channel Activity Detection
@@ -31,3 +32,24 @@ This document provides an overview of CLI commands which are specific to the MU 
 - `value`: Maximum number of resend attempts for direct-routed packets (0–3). `0` disables resending entirely.
 
 **Default:** `2`
+
+---
+
+### View or set the reply path override for the current remote client
+**Usage:**
+- `get outpath`
+- `set outpath <hop1_hex,hop2_hex,...>`
+- `set outpath direct`
+- `set outpath clear`
+- `set outpath flood`
+
+**Parameters:**
+- `hopN_hex`: Hop hash, `2`, `4`, or `6` hex characters. All hops must use the same width.
+
+**Notes:**
+- These commands require remote client context (they target the caller's ACL entry).
+- The path hash size is inferred from the hop hash width.
+- A configured hop list replaces the stored direct reply route used for that caller.
+- `direct` sets a zero-hop direct route for a caller reachable without repeaters.
+- `clear` forgets the current direct path and allows normal path discovery to repopulate it.
+- `flood` forces replies to use flood packets until the client logs in again.
