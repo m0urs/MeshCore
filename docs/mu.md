@@ -59,7 +59,7 @@ This document provides an overview of CLI commands which are specific to the MU 
 ---
 ### Wifi Companion Configuration via Rescue CLI
 
-**Description:** Configure Wifi SSID and Password for a ESP32 companion via the rescue command line interface
+**Description:** Configure Wifi SSID and Password for a ESP32 companion via the rescue command line interface (see https://urspringer.de/mc-faq for how to enable it)
 
 **Usage:**
 - `wifi_ssid <ssid>`
