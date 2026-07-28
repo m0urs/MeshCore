@@ -64,8 +64,8 @@ struct NodePrefs { // persisted to file
   uint8_t radio_fem_rxgain; // LoRa FEM RX gain setting
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
-  uint8_t cad_enabled;         // hardware Channel Activity Detection before TX (boolean)
   uint8_t max_resend_attempts; // 0 = disabled, 1-3, default 2
+  uint8_t cad_enabled;         // hardware Channel Activity Detection before TX (boolean)
   // Redundancy-aware FLOOD suppression (simple_repeater). One master switch + SNR/delay params.
   // The threshold C is derived from the neighbour table (adaptive) with a static fallback
   // when no neighbour data is available; it is not user-configurable.

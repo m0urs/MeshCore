@@ -260,9 +260,9 @@ void Dispatcher::checkRecv() {
               pkt->getRawLength(), pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
               (int)pkt->getSNR(), (int)_radio->getLastRSSI(), (int)(score*1000), air_time);
 
-      pkt->calculatePacketHash();
-      Serial.print(" hash=");
-      mesh::Utils::printHex(Serial, pkt->hash, MAX_HASH_SIZE);
+    pkt->calculatePacketHash();
+    Serial.print(" hash=");
+    mesh::Utils::printHex(Serial, pkt->hash, MAX_HASH_SIZE);
 
       if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ
           || pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
@@ -454,7 +454,6 @@ unsigned long Dispatcher::futureMillis(int millis_from_now) const {
     ctx->wake_registry.registerWakeTime(wake_time);
   }
 #endif
-
   return wake_time;
 }
 
@@ -500,14 +499,20 @@ bool Dispatcher::resendPacket(mesh::Packet *packet) {
   return false;
 }
 
-// W = C0 + K*airtime + margin + (attempt-1)*jitter, capped at RESEND_DEFERRAL_MAX_MS.
-// C0 = RESEND_DEFERRAL_FIXED_MS (static, SF-independent); the K*airtime term carries SF-dependence.
+// W = C0 + K*airtime + margin + (attempt-1)*jitter, capped at an AIRTIME-PROPORTIONAL ceiling
+// (CAP_BASE + CAP_AIRTIME_X*airtime). C0 = RESEND_DEFERRAL_FIXED_MS (static); the K*airtime term
+// carries SF-dependence. The ceiling grows with airtime (CAP_AIRTIME_X >= K) so it never clips the
+// formula's K*airtime term for long packets / high SF — the earlier flat 1500 ms ceiling under-covered
+// SF10 long messages (downstream forward alone is ~2-3 s), so the resend fired before the forward
+// could cancel it and every long message picked up a redundant, colliding resend.
 uint32_t Dispatcher::resendWindowFor(uint16_t airtime_ms, uint8_t sending_attempts) const {
   uint32_t w = (uint32_t)RESEND_DEFERRAL_FIXED_MS
              + (uint32_t)airtime_ms * RESEND_DEFERRAL_AIRTIME_X
              + RESEND_DEFERRAL_MARGIN_MS
              + (uint32_t)(sending_attempts - 1) * RESEND_BACKOFF_JITTER_MS;
-  if (w > RESEND_DEFERRAL_MAX_MS) w = RESEND_DEFERRAL_MAX_MS;
+  uint32_t cap = (uint32_t)RESEND_DEFERRAL_CAP_BASE_MS
+               + (uint32_t)airtime_ms * RESEND_DEFERRAL_CAP_AIRTIME_X;
+  if (w > cap) w = cap;
   return w;
 }
 

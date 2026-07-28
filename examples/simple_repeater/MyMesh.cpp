@@ -465,7 +465,7 @@ void MyMesh::cancelPendingFloodOutbound(const uint8_t* hash) {
   for (int i = 0; i < n; i++) {
     mesh::Packet* p = _mgr->getOutboundByIdx(i);
     if (p && p->isRouteFlood()) {
-      const uint8_t* h = p->calculatePacketHash();
+      const uint8_t* h = p->calculatePacketHash();   // packet's internal cached flood hash
       if (memcmp(h, hash, MAX_HASH_SIZE) == 0) {
         mesh::Packet* removed = _mgr->removeOutboundByIdx(i);
         if (removed) releasePacket(removed);   // return to pool
@@ -552,7 +552,7 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
       // If overheard forwards already made our rebroadcast redundant, do not
       // schedule it at all (covers the case where the 2nd copy arrived and was
       // flagged suppressed before the 1st copy was processed/scheduled).
-      const uint8_t* hash = packet->calculatePacketHash();
+      const uint8_t* hash = packet->calculatePacketHash();   // packet's internal cached flood hash
       FloodSuppressionEntry* e = _flood_supp.find(hash, millis());
       if (e && e->suppressed) return false;
     }
@@ -616,7 +616,7 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
   // already re-broadcast, so accumulate an SNR-weighted count and, once it
   // reaches the threshold C, cancel our own (redundant) scheduled rebroadcast.
   if (effectiveFloodSuppressC() > 0 && pkt->isRouteFlood()) {
-    const uint8_t* hash = pkt->calculatePacketHash();
+    const uint8_t* hash = pkt->calculatePacketHash();   // packet's internal cached flood hash
     bool is_new = false;
     FloodSuppressionEntry* e = _flood_supp.touch(hash, millis(), &is_new);
     if (e) {

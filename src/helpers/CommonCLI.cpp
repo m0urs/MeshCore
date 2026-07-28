@@ -93,7 +93,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    file.read((uint8_t *)&_prefs->max_resend_attempts, sizeof(_prefs->max_resend_attempts));       // 295
+    file.read((uint8_t *)&_prefs->max_resend_attempts, sizeof(_prefs->max_resend_attempts));         // 295
     file.read((uint8_t *)&_prefs->flood_suppress, sizeof(_prefs->flood_suppress));                  // 296
     file.read((uint8_t *)&_prefs->flood_suppress_snr_hi, sizeof(_prefs->flood_suppress_snr_hi));    // 297
     file.read((uint8_t *)&_prefs->flood_suppress_snr_lo, sizeof(_prefs->flood_suppress_snr_lo));    // 298
@@ -200,7 +200,7 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.write((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.write((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    file.write((uint8_t *)&_prefs->max_resend_attempts, sizeof(_prefs->max_resend_attempts));       // 295
+    file.write((uint8_t *)&_prefs->max_resend_attempts, sizeof(_prefs->max_resend_attempts));         // 295
     file.write((uint8_t *)&_prefs->flood_suppress, sizeof(_prefs->flood_suppress));                  // 296
     file.write((uint8_t *)&_prefs->flood_suppress_snr_hi, sizeof(_prefs->flood_suppress_snr_hi));    // 297
     file.write((uint8_t *)&_prefs->flood_suppress_snr_lo, sizeof(_prefs->flood_suppress_snr_lo));    // 298
