@@ -41,6 +41,7 @@ void RAK4631Board::initiateShutdown(uint8_t reason) {
 void RAK4631Board::begin() {
   NRF52BoardDCDC::begin();
   pinMode(PIN_VBAT_READ, INPUT);
+  analogSampleTime(40); // fix ADC issue (https://t.me/meshcorede/30569/91299)
 #ifdef PIN_USER_BTN
   pinMode(PIN_USER_BTN, INPUT_PULLUP);
 #endif
