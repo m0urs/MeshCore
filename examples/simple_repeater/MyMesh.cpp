@@ -1612,7 +1612,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #endif
   _prefs.interference_threshold = 0; // disabled
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on') | OFF for UFO firmware!
-  _prefs.flood_suppress = 1;          // redundancy-aware flood suppression ON by default (adaptive + static fallback)
+  _prefs.flood_suppress = 0;          // redundancy-aware flood suppression OFF by default (adaptive + static fallback)
   _prefs.flood_suppress_snr_hi = 9;  // dB: strong overheard forward => counts double
   _prefs.flood_suppress_snr_lo = 0;  // dB: weak overheard forward => ignored (preserve edge)
   _prefs.flood_suppress_delay_x = 2; // extra TX-delay multiplier for central flood relays
