@@ -109,7 +109,13 @@ class HomeScreen : public UIScreen {
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
 
-
+  // Uptime tracking
+  // Stores the last 32-bit millis() value used to calculate elapsed time.
+  // uint32_t naturally handles the ~49.7-day millis() rollover.
+  uint32_t uptime_last_millis = millis();
+  // 64-bit accumulated uptime in milliseconds.
+  // Allows uptime to continue beyond the 49.7-day millis() rollover.
+  uint64_t uptime_millis = 0;
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
     // Convert millivolts to percentage
 #ifndef BATT_MIN_MILLIVOLTS
@@ -130,6 +136,31 @@ class HomeScreen : public UIScreen {
     int iconX = display.width() - iconWidth - 5; // Position the icon near the top-right corner
     int iconY = 0;
     display.setColor(UIColor::title_txt);
+
+    // Uptime
+    uint32_t now = millis();
+    uptime_millis += (uint32_t)(now - uptime_last_millis);
+    uptime_last_millis = now;
+
+    uint64_t uptimeMinutes = uptime_millis / 60000ULL;
+
+    unsigned long days = uptimeMinutes / 1440;
+    unsigned long hours = (uptimeMinutes % 1440) / 60;
+    unsigned long minutes = uptimeMinutes % 60;
+    char uptime[16];
+    if (days > 0) {
+      snprintf(uptime, sizeof(uptime), "%lud %luh", days, hours);
+    } else if (hours > 0) {
+      snprintf(uptime, sizeof(uptime), "%luh %lum", hours, minutes);
+    } else {
+      snprintf(uptime, sizeof(uptime), "%lum", minutes);
+    }
+
+    display.setTextSize(1);
+    int uptimeWidth = display.getTextWidth(uptime);
+    int spaceWidth = display.getTextWidth(" ");
+    display.setCursor(iconX - uptimeWidth - spaceWidth, iconY); // 1 extra space between uptime and battery icon
+    display.print(uptime);
 
     // battery outline
     display.drawRect(iconX, iconY, iconWidth, iconHeight);

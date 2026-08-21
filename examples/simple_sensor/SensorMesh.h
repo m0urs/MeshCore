@@ -34,11 +34,11 @@
 #define PERM_RECV_ALERTS_HI    (1 << 7)   // high priority alerts
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "9 Aug 2026"
+  #define FIRMWARE_BUILD_DATE   "14 Aug 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.17.0"
+  #define FIRMWARE_VERSION   "v1.17.1"
 #endif
 
 #define FIRMWARE_ROLE "sensor"
@@ -162,6 +162,13 @@ private:
 
   #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
+    // If powersaving on, apply powersaving to sensors
+    if (_prefs.powersaving_enabled) {
+      sensors.powersaving_enabled = true;
+    } else {
+      sensors.powersaving_enabled = false;
+    }
+
     sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
   }
 #endif
