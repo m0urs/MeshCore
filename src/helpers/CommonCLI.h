@@ -65,6 +65,7 @@ public:
   char owner_info[120];
   uint8_t rx_boosted_gain = 0; // power settings
   uint8_t radio_fem_rxgain = 0; // LoRa FEM RX gain setting
+  uint8_t radio_fem_txgain = 0; // LoRa FEM TX gain setting
   uint8_t path_hash_mode = 0;   // which path mode to use when sending
   uint8_t loop_detect = 0;
   uint8_t max_resend_attempts; // 0 = disabled, 1-3, default 2 (repeated sending)
@@ -73,11 +74,12 @@ public:
   // Redundancy-aware FLOOD suppression (simple_repeater). One master switch + SNR/delay params.
   // The threshold C is derived from the neighbour table (adaptive) with a static fallback
   // when no neighbour data is available; it is not user-configurable.
-  uint8_t flood_suppress = 0;          // master switch (0=off, 1=on); default applied in MyMesh setup
+  uint8_t flood_suppress = 0;          // master switch (0=off, 1=on); feature default applied in MyMesh ctor
   int8_t  flood_suppress_snr_hi = 0;   // dB: overheard forward with SNR>=this counts double (central/redundant)
   int8_t  flood_suppress_snr_lo = 0;   // dB: overheard forward with SNR<this counts 0 (preserve edge)
   uint8_t flood_suppress_delay_x = 0;  // extra TX-delay multiplier for central flood relays
   int8_t  trace_tx_power_dbm = 0;      // TX power (dBm) used ONLY for coverage TRACE probes (lower = less disturbance)
+  // SNR-repeat fallback is fixed ON (not configurable).
 
 private:
   class RadioPrefs : public ConfigSerializer {
@@ -91,7 +93,8 @@ private:
       def("cad", _parent->cad_enabled);
       def("int_thr", _parent->interference_threshold);
       def("rxgain", _parent->rx_boosted_gain);
-      def("fem_rxgain", _parent->rx_boosted_gain);
+      def("fem_rxgain", _parent->radio_fem_rxgain);
+      def("fem_txgain", _parent->radio_fem_txgain);
       def("tx", _parent->tx_power_dbm);
       def("af", _parent->airtime_factor);
       def("rxdelay", _parent->rx_delay_base);
@@ -156,11 +159,11 @@ private:
       def("f_max_uns", _parent->flood_max_unscoped);
       def("f_max_adv", _parent->flood_max_advert);
       def("loop", _parent->loop_detect);
-      def("fsuppress", _parent->flood_suppress);
-      def("fsup_snr_hi", _parent->flood_suppress_snr_hi);
-      def("fsup_snr_lo", _parent->flood_suppress_snr_lo);
-      def("fsup_dly_x", _parent->flood_suppress_delay_x);
-      def("trace_tx", _parent->trace_tx_power_dbm);
+      def("fs", _parent->flood_suppress);
+      def("fs_hi", _parent->flood_suppress_snr_hi);
+      def("fs_lo", _parent->flood_suppress_snr_lo);
+      def("fs_dx", _parent->flood_suppress_delay_x);
+      def("fs_tx", _parent->trace_tx_power_dbm);
     }
   public:
     RepeatPrefs(NodePrefs* parent) : _parent(parent) { }
@@ -285,6 +288,10 @@ class CommonCLI {
   RegionMap* _region_map;
   ClientACL* _acl;
   char tmp[PRV_KEY_SIZE*2 + 4];
+
+  // Set false by savePrefs(FILESYSTEM*) when the prefs write (or file open) fails, so the
+  // command handler can surface it instead of replying "OK". Reset to true before each save.
+  bool _last_save_ok = true;
 
   mesh::RTCClock* getRTCClock() { return _rtc; }
   void savePrefs();

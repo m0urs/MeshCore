@@ -63,6 +63,14 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         // append SNR (Not hash!)
         pkt->path[pkt->path_len++] = (int8_t) (pkt->getSNR()*4);
 
+        // Last forwarding hop before the TRACE destination: the destination does not forward,
+        // so a retry could never be cancelled by overhearing a downstream forward. To avoid
+        // flooding the destination, exhaust the retry budget now (no retransmissions from
+        // this hop). Higher layers or the sender must retry the entire TRACE if needed.
+        if (offset + (1 << path_sz) >= len) {
+          pkt->sending_attempts = getMaxResendAttempts();
+        }
+
         // TRACE_FLAG_TERMINATE_AT_LAST: deliver the result HERE when this self match
         // is the final visit-list entry, and do NOT retransmit past it. Lets a
         // coverage trace whose visit-list ends at the initiator (e.g. [a,b,self])
@@ -70,14 +78,6 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         if ((flags & TRACE_FLAG_TERMINATE_AT_LAST) && last_entry) {
           onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], len);
           return ACTION_RELEASE;
-        }
-
-        // Last forwarding hop before the TRACE destination: the destination does not forward,
-        // so a retry could never be cancelled by overhearing a downstream forward. To avoid
-        // flooding the destination, exhaust the retry budget now (no retransmissions from
-        // this hop). Higher layers or the sender must retry the entire TRACE if needed.
-        if (offset + (1 << path_sz) >= len) {
-          pkt->sending_attempts = getMaxResendAttempts();
         }
 
         uint32_t d = getDirectRetransmitDelay(pkt);

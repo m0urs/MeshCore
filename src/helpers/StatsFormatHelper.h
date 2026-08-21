@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Mesh.h"
-#include <string.h>   // strlen (used by formatResendRatio / formatFloodSuppressRatio)
+#include <string.h>   // strlen (used by formatResendRatio, formatFloodSuppressRatio)
 
 class StatsFormatHelper {
 public:

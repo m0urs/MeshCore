@@ -36,6 +36,7 @@
 #include <helpers/StatsFormatHelper.h>
 #include <helpers/TxtDataHelpers.h>
 #include <helpers/RegionMap.h>
+#include <helpers/RoutingPolicy.h>
 #include "RateLimiter.h"
 
 #ifdef WITH_BRIDGE
@@ -152,11 +153,15 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   // Adaptive (neighbour-derived) effective params, recomputed in loop() under #if MAX_NEIGHBOURS.
   uint8_t  _fs_eff_c;            // derived threshold C (0 = off); used when _fs_adaptive_active
   int8_t   _fs_eff_hi;           // derived snr_hi (dB); used when _fs_adaptive_active
+  int8_t   _fs_eff_lo;           // derived snr_lo (dB); used when _fs_adaptive_active
   bool     _fs_adaptive_active;  // neighbour data available this cycle? (else static fallback)
   uint8_t  _fs_pending_c;        // debounce: candidate c awaiting a 2nd confirming cycle
   uint32_t _fs_next_recompute_ms;
   uint32_t _fs_seen;        // distinct floods heard (denominator of suppression ratio)
   uint32_t _fs_suppressed;  // floods whose rebroadcast was made redundant (numerator)
+  // Observability breakdown of the suppression numerator (surfaced in `get flood.suppress`).
+  uint32_t _fs_supp_graph;        // suppressed by the coverage-graph test
+  uint32_t _fs_supp_snr_fallback; // suppressed by the SNR-repeat fallback
   // --- Active TRACE coverage measurement state (populates _nbr_links) ---
   struct PendingTrace {
     uint32_t tag;
@@ -215,6 +220,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void updateAdaptiveFloodParams();                       // derive _fs_eff_c/_fs_eff_hi from neighbour table
   uint8_t effectiveFloodSuppressC() const;                // adaptive? _fs_eff_c : flood_suppress_c
   int8_t effectiveFloodSuppressSnrHi() const;             // adaptive? _fs_eff_hi : flood_suppress_snr_hi
+  int8_t effectiveFloodSuppressSnrLo() const;             // adaptive? _fs_eff_lo : flood_suppress_snr_lo
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
