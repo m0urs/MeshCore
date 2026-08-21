@@ -5,7 +5,7 @@ cd "$HOME/meshcore"
 source bin/activate
 cd MeshCore
 
-export FIRMWARE_VERSION="v1.17.0.mu-ufo1"
+export FIRMWARE_VERSION="v1.17.1.mu-ufo1"
 export DISABLE_DEBUG=0
 
 FIRMWARE_BASE="$HOME/meshcore/Firmware-MU"
@@ -16,11 +16,11 @@ MODELS=(
   "Heltec_v3_repeater:bin merged-bin"
   "RAK_4631_repeater:zip uf2"
   "SenseCap_Solar_repeater:zip uf2"
-  "Heltec_v3_companion_radio_ble:bin merged-bin"
-  "Heltec_v3_companion_radio_wifi:bin merged-bin"
-  "t1000e_companion_radio_ble:zip uf2"
-  "WioTrackerL1_companion_radio_ble:zip uf2"
-  "Heltec_v3_room_server:bin merged-bin"
+  #"Heltec_v3_companion_radio_ble:bin merged-bin"
+  #"Heltec_v3_companion_radio_wifi:bin merged-bin"
+  #"t1000e_companion_radio_ble:zip uf2"
+  #"WioTrackerL1_companion_radio_ble:zip uf2"
+  #"Heltec_v3_room_server:bin merged-bin"
 )
 
 REPEATERS=(
@@ -250,8 +250,8 @@ show_main_menu() {
   local options=(
     "Alle kompilieren"
     "Nur Repeater kompilieren"
-    "Nur Room Server kompilieren"
-    "Nur Companions kompilieren"
+   # "Nur Room Server kompilieren"
+   # "Nur Companions kompilieren"
     "Ein einzelnes Modell kompilieren"
     "Beenden"
   )
@@ -282,18 +282,18 @@ show_main_menu() {
         build_group "Repeater" "${REPEATERS[@]}"
         return 0
         ;;
+   #   3)
+   #     build_group "Room Servers" "${ROOMSERVERS[@]}"
+   #     return 0
+   #     ;;
+   #   4)
+   #     build_group "Companions" "${COMPANIONS[@]}"
+   #     return 0
+   #     ;;
       3)
-        build_group "Room Servers" "${ROOMSERVERS[@]}"
-        return 0
-        ;;
-      4)
-        build_group "Companions" "${COMPANIONS[@]}"
-        return 0
-        ;;
-      5)
         build_single_model_menu
         ;;
-      6)
+      4)
         echo "Abgebrochen."
         return 0
         ;;
