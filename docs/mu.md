@@ -7,6 +7,7 @@ This document provides an overview of CLI commands which are specific to the MU 
 - [View or change the maximum direct-route resend attempts](#view-or-change-the-maximum-direct-route-resend-attempts)
 - [Flood suppression — redundancy-aware rebroadcast cancellation](#experimental-flood-suppression--redundancy-aware-rebroadcast-cancellation)
 - [Flood Suppression Coverage](#flood-suppression-coverage-repeater-only)
+- [Additonal commands from EasySkyMesh Powersaving branch](#additional-powersaving-commands-from-easyskymesh)
   
 ---
 ## View or change the maximum direct-route resend attempts
@@ -141,3 +142,6 @@ Lists the **attached leaf clients** — companion/sensor/room-server nodes for w
 **Output:** one line per client `<hash>:<age>s`, where `hash` is the learned identity prefix (8-hex when seeded from an advert, 2-hex when seeded from a message src_hash) and `age` is seconds since last seen. `-none-` if empty.
 
 ---
+## Additional powersaving commands from EasySkyMesh
+
+For the additional powersaving commands from the EasySkyMesh Powersaving firmware branch, see https://github.com/IoTThinks/EasySkyMesh/wiki/PowerSaving
