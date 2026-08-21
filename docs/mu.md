@@ -4,22 +4,10 @@ This document provides an overview of CLI commands which are specific to the MU 
 
 # Navigation
 
-- [Wifi Companion Configuration via Rescue CLI](#wifi-companion-configuration-via-rescue-cli)
 - [View or change the maximum direct-route resend attempts](#view-or-change-the-maximum-direct-route-resend-attempts)
 - [Flood suppression — redundancy-aware rebroadcast cancellation](#experimental-flood-suppression--redundancy-aware-rebroadcast-cancellation)
 - [Flood Suppression Coverage](#flood-suppression-coverage-repeater-only)
   
----
-## Wifi Companion Configuration via Rescue CLI
-
-**Description:** Configure Wifi SSID and Password for a ESP32 companion via the rescue command line interface
-
-**Usage:**
-- `wifi_ssid <ssid>`
-- `wifi_pwd <pwd>`
-- `wifi_commit`
-- `wifi_clear`
-
 ---
 ## View or change the maximum direct-route resend attempts
 
