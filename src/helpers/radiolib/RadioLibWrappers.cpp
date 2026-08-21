@@ -116,6 +116,22 @@ void RadioLibWrapper::resetAGC() {
   _held_block_count = 0;   // contamination context is stale after an AFE reset
 }
 
+// Clear the RX/idle state so the next loop calls startRecv() again, without
+// dropping an STATE_INT_READY that the ISR may raise while we are in here.
+// A plain `state = STATE_IDLE` loses that flag (and with it, a received
+// packet) when setFlag() fires between the test and the store.
+void RadioLibWrapper::requestRestartRecv() {
+  noInterrupts();
+  if ((state & ~STATE_INT_READY) != STATE_TX_WAIT) {
+    state &= STATE_INT_READY;   // STATE_IDLE, but keep a pending interrupt
+  }
+  interrupts();
+}
+
+bool RadioLibWrapper::isPacketPendingOrReceiving() {
+  return (state & STATE_INT_READY) != 0 || isReceivingPacket();
+}
+
 void RadioLibWrapper::loop() {
   if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
     uint32_t now = millis();
