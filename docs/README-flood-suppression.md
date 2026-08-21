@@ -67,19 +67,20 @@ cancels reliably land before the redundant TX goes out.
 
 ## Configuration
 
-There is **one master switch** and three tuning parameters. The threshold **C is
-not user-configurable** — it is derived from the neighbour table (adaptive) with a
-static fallback (see *Adaptive mode*).
+There is **one master switch** and four tuning parameters. The threshold **C**,
+`snr.hi` and `snr.lo` are **not user-configurable** — they are derived from the
+neighbour table (adaptive) with static fallbacks (see *Adaptive mode*).
 
-`NodePrefs` fields (`src/helpers/CommonCLI.h`), persisted at file bytes 295–298
+`NodePrefs` fields (`src/helpers/CommonCLI.h`), persisted at file bytes 295–299
 (`src/helpers/CommonCLI.cpp`):
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `flood_suppress` | `uint8_t` | `1` (on) | **Master switch.** `0` = feature fully off; `1` = on (adaptive + static fallback). |
-| `flood_suppress_snr_hi` | `int8_t` (dB) | `9` | Overheard forward with SNR `>=` this counts **double**. |
-| `flood_suppress_snr_lo` | `int8_t` (dB) | `0` | Overheard forward with SNR `<` this counts **0** (preserve edge). |
-| `flood_suppress_delay_x` | `uint8_t` | `2` | Extra TX-delay multiplier for central flood relays. |
+| `flood_suppress_snr_hi` | `int8_t` (dB) | `9` | Overheard forward with SNR `>=` this counts **double** (adaptive p75; configured value is the fallback). |
+| `flood_suppress_snr_lo` | `int8_t` (dB) | `0` | Near-membership threshold; overheard forward with SNR `<` this counts **0** (adaptive p25; configured value is the fallback). |
+| `flood_suppress_delay_x` | `uint8_t` | `3` | Extra TX-delay multiplier for central flood relays. |
+| `trace_tx_power_dbm` | `int8_t` (dBm) | `10` | TX power for coverage TRACE probes only (lower = less disturbance). |
 
 The feature is **on by default**; `set flood.suppress off` (or YAML
 `flood_suppress: 0`) disables it completely.
@@ -94,23 +95,54 @@ The feature is **on by default**; `set flood.suppress off` (or YAML
 |---|---|
 | `set flood.suppress on` / `off` | master switch (`get flood.suppress`) |
 | `set flood.suppress.snr.hi <dB>` | `-30..30` (`get flood.suppress.snr.hi`) |
-| `set flood.suppress.snr.lo <dB>` | `-30..30` (`get flood.suppress.snr.lo`) |
+| `set flood.suppress.snr.lo <dB>` | `-30..30` (`get flood.suppress.snr.lo`); adaptive p25 fallback |
 | `set flood.suppress.delay.factor <n>` | `0..8` (`get flood.suppress.delay.factor`) |
+| `set trace.tx.power <dBm>` | `-9..30` (`get trace.tx.power`) |
+
+### Channel-state policy: deliberately none
+
+An earlier revision gated suppression on the measured noise floor (a per-site
+quiet baseline plus a configurable margin) with a payload-class policy on top.
+It was **removed** on purpose. On an active mesh the measured floor mostly
+reflects the mesh's **own** redundant traffic, so the gate closed exactly when
+suppression was most valuable — a self-reinforcing loop (little suppression →
+more forwards → "noisy" → even less suppression). Channel state therefore does
+not enter the suppression decision at all: under load a redundant rebroadcast
+is itself the load, and cancelling it is the right move even at some residual
+delivery risk. The only content-based gate is the always-on 3-tier **client
+protection** (`MyMesh::clientProtectionAllowsSuppress`: TRACE/CONTROL free,
+addressed types iff the destination is not an attached client, broadcasts that
+clients may need are always forwarded).
+
+### SNR-repeat fallback
+
+The coverage-graph test is intentionally conservative: it only suppresses when it
+can **prove** every near neighbour already has the flood. When the graph cannot
+prove coverage (e.g. the forwarders are beyond the top-N coverage cap, so no
+measured TRACE edge exists), a secondary **legacy SNR-repeat counter** still
+applies: each overheard forward of the same hash increments a per-flood weighted
+counter (`SNR >= snr.hi` → +2, `< snr.lo` → 0, else +1). Once the weighted count
+reaches the effective **C**, the rebroadcast is cancelled even without graph
+proof. The graph result always wins; the fallback only widens the suppression
+set. The same 3-tier client protection applies as on the graph path; channel
+state and payload class gate neither path (see *Channel-state policy:
+deliberately none*). The fallback is fixed ON and not configurable.
 
 ---
 
 ## Adaptive mode (self-tuning, zero-admin)
 
-With the master switch **on**, the threshold **C** and `snr.hi` are **derived from
-the repeater's neighbour table** (`simple_repeater`'s `neighbours[]`, seeded from
-zero-hop repeater adverts / node-discovery and kept fresh by overheard forwards),
-with a safe **static fallback**
-when no neighbour data is available. No per-topology tuning is required.
+With the master switch **on**, the threshold **C**, `snr.hi` **and `snr.lo`** are
+**derived from the repeater's neighbour table** (`simple_repeater`'s `neighbours[]`,
+seeded from zero-hop repeater adverts / node-discovery and kept fresh by overheard
+forwards), with safe **static fallbacks** when no neighbour data is available. No
+per-topology tuning is required.
 
 `MyMesh::updateAdaptiveFloodParams()` runs throttled (~every 1 min) from `loop()`
 and caches the **effective** values; the consumption sites read
-`effectiveFloodSuppressC()` / `effectiveFloodSuppressSnrHi()`. The whole derivation
-is under `#if MAX_NEIGHBOURS` (the table is a build flag).
+`effectiveFloodSuppressC()` / `effectiveFloodSuppressSnrHi()` /
+`effectiveFloodSuppressSnrLo()`. C/hi/lo are derived under `#if MAX_NEIGHBOURS`
+(the table is a build flag).
 
 **Derivation** (only **fresh** neighbours counted — `heard_timestamp` age ≤ 600 s,
 i.e. heard within the last 10 min):
@@ -129,7 +161,11 @@ identity, so seeding brand-new neighbours still needs an advert / node-discovery
 | Parameter | Derived from | Rule |
 |---|---|---|
 | `effective_c` | neighbour **density** `n` (fresh count) | `n < 3 → 0` (edge node — don't suppress) · `3–4 → 3` · `≥ 5 → 2` (dense core — aggressive) |
-| `effective_snr_hi` | link-SNR **p75** of fresh neighbours | `clamp(p75, snr.lo+4, snr.lo+12)`; needs ≥ 4 samples, else the configured `snr.hi` |
+| `effective_snr_lo` | link-SNR **p25** of fresh neighbours | near-membership threshold; `clamp(p25, -5, 15)`; needs ≥ 4 samples, else the configured `snr.lo` |
+| `effective_snr_hi` | link-SNR **p75** of fresh neighbours | `clamp(p75, eff.lo+4, eff.lo+12)`; needs ≥ 4 samples, else the configured `snr.hi` |
+
+`snr.lo` does **not** feed back into the density count `n` (which is by timestamp
+only), so widening/narrowing the near set cannot oscillate `c`.
 
 A 2-cycle debounce on `c` prevents flapping when the neighbour count fluctuates (at
 a 1-min recompute cadence an adopted change lands within ~2 min; the recompute cost
@@ -181,7 +217,7 @@ static fallback. The refresh is a hardware-only improvement.
 | File | Change |
 |---|---|
 | `src/helpers/FloodSuppression.h` | **New.** Per-hash ring: `{hash, weighted_count, first_snr, strongest_overheard, first_seen, suppressed, active}` + `find` / `touch` / `purge`. |
-| `examples/simple_repeater/MyMesh.h` | Helper include; `_flood_supp` + adaptive state (`_fs_eff_c`, `_fs_eff_hi`, `_fs_adaptive_active`, …); `cancelPendingFloodOutbound`, `updateAdaptiveFloodParams`, `effectiveFloodSuppressC/Hi`, `touchNeighbourByHash`; `sendNodeDiscoverReq(delay_millis)`. |
+| `examples/simple_repeater/MyMesh.h` | Helper include; `_flood_supp` + adaptive state (`_fs_eff_c`, `_fs_eff_hi`, `_fs_eff_lo`, `_fs_adaptive_active`, …); `cancelPendingFloodOutbound`, `updateAdaptiveFloodParams`, `effectiveFloodSuppressC/Hi/Lo`, `touchNeighbourByHash`; `sendNodeDiscoverReq(delay_millis)`. |
 | `examples/simple_repeater/MyMesh.cpp` | `logRx` (count + SNR-bias + cancel + neighbour-liveness refresh via `touchNeighbourByHash`), `allowPacketForward` (gate), `cancelPendingFloodOutbound`, `touchNeighbourByHash` (refresh known neighbour from an overheard forward's last path hash + smoothed SNR), `getRetransmitDelay` (delay bias), `loop()` (purge + adaptive recompute @ 1 min), `updateAdaptiveFloodParams` + effective accessors + `FLOOD_SUPPRESS_FALLBACK_C`, `sendNodeDiscoverReq(delay)`, constructor defaults. Consumption reads *effective* values. |
 | `examples/simple_repeater/main.cpp` | Boot discovery: `sendNodeDiscoverReq(…)` gated on `flood_suppress`. |
 | `src/helpers/CommonCLI.h` / `CommonCLI.cpp` | `NodePrefs` fields + persisted read/write + defaults + `set/get flood.suppress*` CLI handlers. |

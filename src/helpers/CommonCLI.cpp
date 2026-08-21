@@ -35,7 +35,12 @@ void CommonCLI::loadPrefs(FILESYSTEM* fs) {
     File file = fs->open("/prefs.json");
 #endif
     if (file) {
-      _prefs->loadSerial(file);   // new Serial prefs
+      if (file.size() == 0) {
+        MESH_DEBUG_PRINTLN("loadPrefs: /prefs.json empty - using defaults");
+      } else {
+        bool ok = _prefs->loadSerial(file);   // returns true even on an empty file
+        if (!ok) MESH_DEBUG_PRINTLN("loadPrefs: /prefs.json parse failed - using defaults");
+      }
       file.close();
     }
   } else if (fs->exists("/com_prefs")) {
@@ -139,6 +144,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
     _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
+    _prefs->radio_fem_txgain = constrain(_prefs->radio_fem_txgain, 0, 1); // boolean
     _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
     _prefs->max_resend_attempts = constrain(_prefs->max_resend_attempts, 0, 3);
     _prefs->flood_suppress = constrain(_prefs->flood_suppress, 0, 1); // boolean (master switch)
@@ -160,12 +166,14 @@ bool CommonCLI::savePrefs(FILESYSTEM* fs) {
 #else
   File file = fs->open("/prefs.json", "w", true);
 #endif
+  bool success = false;
   if (file) {
-    bool success = _prefs->saveSerial(file);
+    success = _prefs->saveSerial(file);
     file.close();
-    return success;
   }
-  return false;
+  _last_save_ok = success;
+  if (!success) MESH_DEBUG_PRINTLN("savePrefs: write FAILED (prefs NOT persisted)");
+  return success;
 }
 
 #define MIN_LOCAL_ADVERT_INTERVAL   60
@@ -285,7 +293,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "get ", 4) == 0) {
       handleGetCmd(sender_timestamp, command, reply);
     } else if (memcmp(command, "set ", 4) == 0) {
+      _last_save_ok = true;
       handleSetCmd(sender_timestamp, command, reply);
+      if (!_last_save_ok) {
+        // Underlying write failed (e.g. corrupt/full InternalFS) - the per-field "OK" reply
+        // would be misleading.
+        strcpy(reply, "ERR: prefs write failed - 'erase' after saving prv.key as last resort");
+      }
     } else if (sender_timestamp == 0 && strcmp(command, "erase") == 0) {
       bool s = _callbacks->formatFileSystem();
       sprintf(reply, "File system erase: %s", s ? "OK" : "Err");
@@ -612,6 +626,28 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: state must be on or off");
     }
+  } else if (memcmp(config, "radio.fem.txgain ", 17) == 0) {
+    if (!_board->canControlLoRaFemPaGain()) {
+      strcpy(reply, "Error: unsupported");
+    } else if (memcmp(&config[17], "on", 2) == 0) {
+      if (_board->setLoRaFemPaGainEnabled(true)) {
+        _prefs->radio_fem_txgain = 1;
+        savePrefs();
+        strcpy(reply, "OK - LoRa FEM TX gain on");
+      } else {
+        strcpy(reply, "Error: failed to apply LoRa FEM TX gain");
+      }
+    } else if (memcmp(&config[17], "off", 3) == 0) {
+      if (_board->setLoRaFemPaGainEnabled(false)) {
+        _prefs->radio_fem_txgain = 0;
+        savePrefs();
+        strcpy(reply, "OK - LoRa FEM TX gain off");
+      } else {
+        strcpy(reply, "Error: failed to apply LoRa FEM TX gain");
+      }
+    } else {
+      strcpy(reply, "Error: state must be on or off");
+    }
   } else if (memcmp(config, "radio ", 6) == 0) {
     strcpy(tmp, &config[6]);
     const char *parts[4];
@@ -888,6 +924,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error: unsupported");
     } else {
       sprintf(reply, "> %s", _board->isLoRaFemLnaEnabled() ? "on" : "off");
+    }
+  } else if (memcmp(config, "radio.fem.txgain", 16) == 0) {
+    if (!_board->canControlLoRaFemPaGain()) {
+      strcpy(reply, "Error: unsupported");
+    } else {
+      sprintf(reply, "> %s", _board->isLoRaFemPaGainEnabled() ? "on" : "off");
     }
   } else if (memcmp(config, "radio", 5) == 0) {
     char freq[16], bw[16];

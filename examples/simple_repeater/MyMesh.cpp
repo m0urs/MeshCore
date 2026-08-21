@@ -143,13 +143,13 @@ void MyMesh::touchNeighbourByHash(const mesh::Packet* packet) {
 }
 
 // Is neighbours[i] a "near" coverage peer? fresh (<= NEIGHBOUR_FRESH_S) and link
-// SNR >= flood_suppress_snr_lo. Distant/weak neighbours are edge nodes, excluded
-// (same intent as the old SNR-weighting weight-0).
+// SNR >= effective snr_lo (adaptive p25). Distant/weak neighbours are edge nodes,
+// excluded (same intent as the old SNR-weighting weight-0).
 bool MyMesh::isNearNeighbour(int i, uint32_t now) const {
 #if MAX_NEIGHBOURS
   if (neighbours[i].heard_timestamp == 0) return false;                              // empty slot
   if ((uint32_t)(now - neighbours[i].heard_timestamp) > NEIGHBOUR_FRESH_S) return false;  // stale
-  int8_t lo_x4 = (int8_t)(_prefs.flood_suppress_snr_lo * 4);
+  int8_t lo_x4 = (int8_t)(effectiveFloodSuppressSnrLo() * 4);
   return neighbours[i].snr >= lo_x4;
 #else
   return false;
@@ -319,7 +319,7 @@ void MyMesh::onTraceRecv(mesh::Packet* /*packet*/, uint32_t tag, uint32_t /*auth
   if (n_hops == 3 && entry_sz == TRACE_MEAS_HASH_SIZE) {
     _meas_returned++;                                  // a coverage TRACE round-trip completed back here
     int8_t snr_x4 = (int8_t)path_snrs[1];              // SNR at b of a's forward = a reaches b
-    if (snr_x4 >= (int8_t)(_prefs.flood_suppress_snr_lo * 4)) {
+    if (snr_x4 >= (int8_t)(effectiveFloodSuppressSnrLo() * 4)) {
       _nbr_links.addEdge(path_hashes, path_hashes + entry_sz, entry_sz, millis());
       _meas_edge++;                                    // ...and the a->b link was strong enough to record
     } else {
@@ -841,15 +841,23 @@ bool MyMesh::isLooped(const mesh::Packet* packet, const uint8_t max_counters[]) 
 }
 
 void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size) {
-  if (recv_pkt_region && !recv_pkt_region->isWildcard()) {  // if _request_ packet scope is known, send reply with same scope
-    TransportKey scope;
-    if (region_map.getTransportKeysFor(*recv_pkt_region, &scope, 1) > 0) {
-      sendFloodScoped(scope, packet, delay_millis, path_hash_size);
-    } else {
+  TransportKey req_scope;
+  bool is_wildcard = recv_pkt_region != NULL && recv_pkt_region->isWildcard();
+  bool req_scope_known = recv_pkt_region != NULL && !is_wildcard
+                      && region_map.getTransportKeysFor(*recv_pkt_region, &req_scope, 1) > 0;
+
+  switch (mesh::chooseReplyScope(req_scope_known, is_wildcard, !default_scope.isNull())) {
+    case mesh::REPLY_SCOPE_REQUEST:
+      sendFloodScoped(req_scope, packet, delay_millis, path_hash_size);   // reply with same scope as request
+      break;
+    case mesh::REPLY_SCOPE_DEFAULT:
+      // requester's scope is unknown: DIRECT request (no transport codes), or code matched no Region.
+      // un-scoped would be dropped at hop 0 by repeaters running flood.max.unscoped=0
+      sendFloodScoped(default_scope, packet, delay_millis, path_hash_size);
+      break;
+    case mesh::REPLY_SCOPE_NONE:
       sendFlood(packet, delay_millis, path_hash_size);  // send un-scoped
-    }
-  } else {
-    sendFlood(packet, delay_millis, path_hash_size);  // send un-scoped
+      break;
   }
 }
 
@@ -876,6 +884,11 @@ void MyMesh::cancelPendingFloodOutbound(const uint8_t* hash) {
 // nodes (too few overheard forwards reach it), so this is safe as a zero-admin default.
 static const uint8_t FLOOD_SUPPRESS_FALLBACK_C = 2;
 
+// Clamp for the derived snr_lo (near-membership threshold). LoRa decodes below 0 dB SNR, so the
+// floor keeps usable weak links "near"; the cap stops membership becoming trivially loose.
+static const int8_t FLOOD_SUPPRESS_SNR_LO_MIN = -5;
+static const int8_t FLOOD_SUPPRESS_SNR_LO_MAX = 15;
+
 // Effective params: the master switch gates everything; adaptive values apply when neighbour data
 // is available, otherwise the static fallback (configured snr_hi/lo/delay + FLOOD_SUPPRESS_FALLBACK_C).
 uint8_t MyMesh::effectiveFloodSuppressC() const {
@@ -885,6 +898,10 @@ uint8_t MyMesh::effectiveFloodSuppressC() const {
 int8_t MyMesh::effectiveFloodSuppressSnrHi() const {
   if (!_prefs.flood_suppress) return _prefs.flood_suppress_snr_hi;   // moot: effective c == 0
   return _fs_adaptive_active ? _fs_eff_hi : _prefs.flood_suppress_snr_hi;
+}
+int8_t MyMesh::effectiveFloodSuppressSnrLo() const {
+  if (!_prefs.flood_suppress) return _prefs.flood_suppress_snr_lo;   // moot: effective c == 0
+  return _fs_adaptive_active ? _fs_eff_lo : _prefs.flood_suppress_snr_lo;
 }
 
 // Derive effective c (from neighbour density) and snr_hi (from link-SNR p75). Runs throttled from
@@ -910,18 +927,25 @@ void MyMesh::updateAdaptiveFloodParams() {
   // c from density: <3 fresh => 0 (edge node, don't suppress); 3-4 => 3; >=5 => 2.
   uint8_t derived_c = (n < 3) ? 0 : (n <= 4) ? 3 : 2;
 
-  // snr_hi = p75 of fresh link SNRs (dB), clamped to [lo+4, lo+12]; needs >=4 samples.
+  // snr_lo = p25 (near-membership threshold) and snr_hi = p75 of fresh link SNRs (dB). lo anchors
+  // hi's clamp [lo+4, lo+12]; both need >=4 samples, else keep configured. Adaptive lo means the
+  // near set self-calibrates to the deployment (strong mesh -> weak links become "edge"); it does
+  // NOT feed back into n (n counts fresh neighbours by timestamp only), so no oscillation loop.
+  int8_t derived_lo = _prefs.flood_suppress_snr_lo;     // else keep configured
   int8_t derived_hi = _prefs.flood_suppress_snr_hi;     // else keep configured
   if (n >= 4) {
-    for (int i = 1; i < n; i++) {                        // insertion sort (<=50 elems)
+    for (int i = 1; i < n; i++) {                        // insertion sort ascending (<=50 elems)
       int8_t v = snr_x4[i]; int j = i - 1;
       while (j >= 0 && snr_x4[j] > v) { snr_x4[j + 1] = snr_x4[j]; j--; }
       snr_x4[j + 1] = v;
     }
+    int8_t lo_db = (int8_t)(snr_x4[((n - 1) * 1) / 4] / 4);   // p25, x4 -> dB
+    if (lo_db < FLOOD_SUPPRESS_SNR_LO_MIN) lo_db = FLOOD_SUPPRESS_SNR_LO_MIN;
+    if (lo_db > FLOOD_SUPPRESS_SNR_LO_MAX) lo_db = FLOOD_SUPPRESS_SNR_LO_MAX;
+    derived_lo = lo_db;
     int8_t hi_db = (int8_t)(snr_x4[((n - 1) * 3) / 4] / 4);   // p75, x4 -> dB
-    int8_t lo = _prefs.flood_suppress_snr_lo;
-    if (hi_db < lo + 4) hi_db = lo + 4;
-    if (hi_db > lo + 12) hi_db = lo + 12;
+    if (hi_db < lo_db + 4) hi_db = lo_db + 4;
+    if (hi_db > lo_db + 12) hi_db = lo_db + 12;
     derived_hi = hi_db;
   }
 
@@ -929,11 +953,12 @@ void MyMesh::updateAdaptiveFloodParams() {
   uint8_t new_c = (derived_c == _fs_pending_c) ? derived_c : _fs_eff_c;
   _fs_pending_c = derived_c;
 
-  if (new_c != _fs_eff_c || derived_hi != _fs_eff_hi) {
-    MESH_DEBUG_PRINTLN("%s flood-suppress adaptive: neighbours=%d -> c=%d (was %d), snr_hi=%d (was %d)",
-                       getLogDateTime(), n, new_c, _fs_eff_c, (int)derived_hi, (int)_fs_eff_hi);
+  if (new_c != _fs_eff_c || derived_hi != _fs_eff_hi || derived_lo != _fs_eff_lo) {
+    MESH_DEBUG_PRINTLN("%s flood-suppress adaptive: neighbours=%d -> c=%d (was %d), snr_lo=%d (was %d), snr_hi=%d (was %d)",
+                       getLogDateTime(), n, new_c, _fs_eff_c, (int)derived_lo, (int)_fs_eff_lo, (int)derived_hi, (int)_fs_eff_hi);
   }
   _fs_eff_c = new_c;
+  _fs_eff_lo = derived_lo;
   _fs_eff_hi = derived_hi;
 #else
   _fs_adaptive_active = false;   // no neighbour table compiled in -> static fallback
@@ -951,9 +976,9 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
       FloodSuppressionEntry* e = _flood_supp.find(hash, millis());
       if (e && e->suppressed) return false;
     }
-    if (packet->getPathHashCount() >= _prefs.flood_max) return false;
-    if (packet->getRouteType() == ROUTE_TYPE_FLOOD && packet->getPathHashCount() >= _prefs.flood_max_unscoped) return false;
-    if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT && packet->getPathHashCount() >= _prefs.flood_max_advert) return false;
+    if (mesh::isFloodHopLimitExceeded(packet, _prefs.flood_max, _prefs.flood_max_unscoped, _prefs.flood_max_advert)) {
+      return false;
+    }
   }
   if (packet->isRouteFlood() && recv_pkt_region == NULL) {
     MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
@@ -1090,14 +1115,45 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
       }
 
       // (d) suppress iff no isolated-uncovered peer, every coverage peer covered, and
-      //     client-protection allows it (3-tier, always active).
+      //     client-protection allows it (3-tier, always active). Channel state does not
+      //     enter the decision: under load the redundant TX itself IS the load.
       if (!e->must_cover_self && allNearNeighboursCovered(*e, now)
           && clientProtectionAllowsSuppress(pkt, now)) {
         e->suppressed = true;
         _fs_suppressed++;                    // our rebroadcast was made redundant
+        _fs_supp_graph++;
         cancelPendingFloodOutbound(hash);
       }
 #endif
+    }
+
+    // --- SNR-repeat fallback (soundness-preserving) -----------------------------
+    // Runs for every overheard copy EXCEPT the first (entry-creating) one, when the
+    // graph test did NOT suppress. Revives the original weighted counter: weight by
+    // this copy's RX SNR (>=snr_hi -> +2, <snr_lo -> 0, else +1). When the weighted
+    // count reaches the effective C, the rebroadcast is redundant even without graph
+    // proof (e.g. the forwarders are rank >cap, so no TRACE edge covers them). The
+    // graph result always wins: this only fires when the graph could not prove
+    // coverage, and never overrides must_cover_self (an uncovered top-N neighbour M
+    // definitively owes coverage to -- only M's own TX can reach it). Same client
+    // protection as the graph path; channel state and payload class do not gate this
+    // (deliberate -- see README).
+    if (e && !e->suppressed && !is_new) {
+      uint8_t c = effectiveFloodSuppressC();
+      if (c > 0 && e->snr_fallback_wcount < 255) {
+        float snr = pkt->getSNR();
+        int8_t hi = effectiveFloodSuppressSnrHi();
+        int8_t lo = effectiveFloodSuppressSnrLo();
+        e->snr_fallback_wcount += (snr >= hi) ? 2 : (snr < lo) ? 0 : 1;
+        if (e->snr_fallback_wcount >= c && !e->snr_fallback_suppressed && !e->must_cover_self &&
+            clientProtectionAllowsSuppress(pkt, getRTCClock()->getCurrentTime())) {
+          e->snr_fallback_suppressed = true;
+          e->suppressed = true;
+          _fs_suppressed++;
+          _fs_supp_snr_fallback++;
+          cancelPendingFloodOutbound(hash);
+        }
+      }
     }
   }
 #if MAX_NEIGHBOURS
@@ -1121,7 +1177,7 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
         if (findNearNeighbour(visit, entry_sz, now) >= 0
             && findNearNeighbour(visit + entry_sz, entry_sz, now) >= 0) {   // both a,b are our near
           int8_t snr_ab_x4 = (int8_t)pkt->path[1];
-          if (snr_ab_x4 >= (int8_t)(_prefs.flood_suppress_snr_lo * 4)) {
+          if (snr_ab_x4 >= (int8_t)(effectiveFloodSuppressSnrLo() * 4)) {
             _nbr_links.addEdge(visit, visit + entry_sz, entry_sz, millis());   // a reaches b (clears stale neg)
             _meas_harvested++;
           } else {
@@ -1271,17 +1327,29 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
 
     if (reply_len == 0) return;   // invalid request
 
-    if (packet->isRouteFlood()) {
+    // a DIRECT login can reply via the stored out_path, as onPeerDataRecv() does for REQ
+    ClientInfo* client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
+    bool have_out_path = client != NULL && client->out_path_len != OUT_PATH_UNKNOWN;
+
+    auto route = mesh::chooseReplyRoute(packet->isRouteFlood(), reply_path_len != 0xFF, have_out_path);
+
+    if (route == mesh::REPLY_ROUTE_PATH_RETURN) {
       // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
       mesh::Packet* path = createPathReturn(sender, secret, packet->path, packet->path_len,
                                             PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
       if (path) sendFloodReply(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
-    } else if (reply_path_len == 0xFF) {
-      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
-      if (reply) sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+      return;
+    }
+
+    mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
+    if (reply == NULL) return;
+
+    if (route == mesh::REPLY_ROUTE_DIRECT_SUPPLIED) {
+      sendDirect(reply, reply_path, reply_path_len, SERVER_RESPONSE_DELAY);
+    } else if (route == mesh::REPLY_ROUTE_DIRECT_OUT_PATH) {
+      sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
     } else {
-      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
-      if (reply) sendDirect(reply, reply_path, reply_path_len, SERVER_RESPONSE_DELAY);
+      sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
     }
   }
 }
@@ -1562,11 +1630,13 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   uptime_millis = 0;
   _fs_eff_c = 0;                     // adaptive: off until neighbour table fills
   _fs_eff_hi = 9;
+  _fs_eff_lo = 0;
   _fs_pending_c = 0;
   _fs_adaptive_active = false;       // until neighbour data is available -> static fallback
   _fs_next_recompute_ms = 0;
   _fs_seen = 0;
   _fs_suppressed = 0;
+  _fs_supp_graph = _fs_supp_snr_fallback = 0;
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
   set_radio_at = revert_radio_at = 0;
@@ -1615,8 +1685,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_suppress = 0;          // redundancy-aware flood suppression OFF by default (adaptive + static fallback)
   _prefs.flood_suppress_snr_hi = 9;  // dB: strong overheard forward => counts double
   _prefs.flood_suppress_snr_lo = 0;  // dB: weak overheard forward => ignored (preserve edge)
-  _prefs.flood_suppress_delay_x = 2; // extra TX-delay multiplier for central flood relays
+  _prefs.flood_suppress_delay_x = 3; // extra TX-delay multiplier for central flood relays (wider cancel window)
   _prefs.trace_tx_power_dbm = 10;    // TX power for coverage TRACE probes only (near links are strong; less disturbance)
+  // SNR-repeat fallback is fixed ON (not configurable).
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
@@ -1642,6 +1713,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #endif
 #endif
   _prefs.radio_fem_rxgain = 1;
+  _prefs.radio_fem_txgain = 0;
 
   pending_discover_tag = 0;
   pending_discover_until = 0;
@@ -1691,6 +1763,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
                      radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
   board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
+  board.setLoRaFemPaGainEnabled(_prefs.radio_fem_txgain);
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
@@ -1911,6 +1984,13 @@ void MyMesh::formatResendRatioReply(char *reply) {
 void MyMesh::formatFloodSuppressRatioReply(char *reply) {
   if (!_prefs.flood_suppress) return;  // plain "> off" when the master switch is off
   StatsFormatHelper::formatFloodSuppressRatio(reply, _fs_suppressed, _fs_seen);
+  // Append the suppression-path breakdown: graph=coverage-graph suppressions,
+  // snr_fallback=SNR-repeat fallback suppressions. Lets the operator see WHICH
+  // mechanism is doing the work.
+  char extra[64];
+  sprintf(extra, " (graph=%lu snr_fallback=%lu)", (unsigned long)_fs_supp_graph,
+          (unsigned long)_fs_supp_snr_fallback);
+  strcat(reply, extra);
 }
 
 // `clients` reply: one line per attached leaf client "<hash>:<age>s" -- the hash is
@@ -2007,7 +2087,7 @@ void MyMesh::formatNearReply(char *reply) {
     idx[b] = v;
   }
 
-  sprintf(dp, "near snr_lo=%d cap=%d n=%u", (int)_prefs.flood_suppress_snr_lo,
+  sprintf(dp, "near snr_lo=%d cap=%d n=%u", (int)effectiveFloodSuppressSnrLo(),
           (int)NEAR_NEIGHBOUR_COVERAGE_CAP, (unsigned)n);
   while (*dp) dp++;
 
@@ -2064,6 +2144,7 @@ void MyMesh::clearStats() {
   ((SimpleMeshTables *)getTables())->resetStats();
   _fs_seen = 0;
   _fs_suppressed = 0;
+  _fs_supp_graph = _fs_supp_snr_fallback = 0;
   _meas_sent = _meas_returned = _meas_edge = _meas_timeout = _meas_neg = 0;
   _meas_harvested = _meas_harvest_neg = 0;
 }
