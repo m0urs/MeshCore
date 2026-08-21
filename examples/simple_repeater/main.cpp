@@ -102,12 +102,25 @@ void setup() {
   ethernet_command[0] = 0;
 #endif
 
+#if ENV_INCLUDE_GPS == 1
+  // Apply PowerSaving profile for GPS
+  if (sensors.getLocationProvider() != NULL) {
+    // Let CLI "gps on" call setSettingValue to enable the PowerSaving mode
+    // sensors.powersaving_enabled = true;
+    // sensors.getLocationProvider()->enablePowerSaving(true);
+
+    // GPS on and off duration in seconds
+    sensors.getLocationProvider()->setPowerSavingProfile(600, 86400); // Max 10 minutes, 1 day
+  }
+#endif
+
   sensors.begin();
 
   the_mesh.begin(fs);
 
 #ifdef DISPLAY_CLASS
-  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
+  // Added board for battery display
+  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION, &board);
 #endif
 
 #ifdef ETHERNET_ENABLED
@@ -153,9 +166,11 @@ void loop() {
     reply[0] = 0;
 #ifdef ETHERNET_ENABLED
     if (!ethernet_handle_command(command, reply)) {
+      // Outpath PR
       the_mesh.handleCommand(0, NULL, command, reply);
     }
 #else
+    // Outpath PR
     the_mesh.handleCommand(0, NULL, command, reply);  // NOTE: there is no sender_timestamp via serial!
 #endif
     if (reply[0]) {
@@ -171,7 +186,8 @@ void loop() {
     char reply[160];
     reply[0] = 0;
     if (!ethernet_handle_command(ethernet_command, reply)) {
-      the_mesh.handleCommand(0, ethernet_command, reply);
+      // Outpath PR
+      the_mesh.handleCommand(0, NULL, ethernet_command, reply);
     }
     ethernet_send_reply(reply);
     ethernet_command[0] = 0;
@@ -211,5 +227,10 @@ void loop() {
       board.sleep(30); // Sleep. Wake up after a while or when receiving a LoRa packet
     }
 #endif
+  }
+
+  if (the_mesh.getNodePrefs()->reboot_interval > 0 &&
+      the_mesh.millisHasNowPassed(the_mesh.getNodePrefs()->reboot_interval * 3600000)) {
+    board.reboot();
   }
 }

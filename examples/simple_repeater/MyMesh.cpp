@@ -1,5 +1,28 @@
 #include "MyMesh.h"
 #include <algorithm>
+#include "helpers/radiolib/RXPowerSaving.h"
+
+static RxPowerSavingControl* getRxPowerSavingControl() {
+#ifdef WRAPPER_CLASS
+  return &radio_driver;
+#else
+  return nullptr;
+#endif
+}
+
+static void applyRxPowerSavingConfig(NodePrefs& prefs, uint8_t sf, float bw) {
+  normalizeRxPowerSavingConfig(&prefs.rxps, sf, bw);
+  RxPowerSavingControl* control = getRxPowerSavingControl();
+  bool ok = control != nullptr
+      ? control->setRxPowerSaving(
+            prefs.rxps.enabled != 0, prefs.rxps.rx_us, prefs.rxps.sleep_us)
+      : prefs.rxps.enabled == 0;
+  MESH_DEBUG_PRINTLN("RX Power Saving: desired=%s, rx=%lu, sleep=%lu, %s",
+                     prefs.rxps.enabled ? "on" : "off",
+                     (unsigned long)prefs.rxps.rx_us,
+                     (unsigned long)prefs.rxps.sleep_us,
+                     ok ? "accepted" : "unsupported");
+}
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -1430,6 +1453,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         mesh::Packet *reply =
             createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len);
         if (reply) {
+          // Outpath PR
           if (mesh::Packet::isValidPathLen(client->out_path_len)) { // we have an out_path, so send DIRECT
             sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
           } else {
@@ -1463,9 +1487,11 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
 
         mesh::Packet *ack = createAck(ack_hash);
         if (ack) {
+          // Outpath PR
           if (mesh::Packet::isValidPathLen(client->out_path_len)) {
             sendDirect(ack, client->out_path, client->out_path_len, TXT_ACK_DELAY);
           } else {
+            // Outpath PR
             sendFloodReply(ack, TXT_ACK_DELAY, packet->getPathHashSize());
           }
         }
@@ -1477,6 +1503,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       if (is_retry) {
         *reply = 0;
       } else {
+        // Outpath PR
         handleCommand(sender_timestamp, client, command, reply);
       }
       int text_len = strlen(reply);
@@ -1491,9 +1518,11 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
 
         auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
         if (reply) {
+          // Outpath PR
           if (mesh::Packet::isValidPathLen(client->out_path_len)) {
             sendDirect(reply, client->out_path, client->out_path_len, CLI_REPLY_DELAY_MILLIS);
           } else {
+            // Outpath PR
             sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
           }
         }
@@ -1513,6 +1542,7 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
     MESH_DEBUG_PRINTLN("PATH to client, path_len=%d", (uint32_t)path_len);
     auto client = acl.getClientByIdx(i);
 
+    // Outpath PR
     // store a copy of path, for sendDirect()
     if (client->out_path_len != OUT_PATH_FORCE_FLOOD) {
       client->out_path_len = mesh::Packet::copyPath(client->out_path, path, path_len);
@@ -1615,7 +1645,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
                mesh::RTCClock &rtc, mesh::MeshTables &tables)
     : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
       region_map(key_store), temp_map(key_store),
-      _cli(board, rtc, sensors, region_map, acl, &_prefs, this),
+      _cli(board, rtc, sensors, region_map, acl, &_prefs, this, getRxPowerSavingControl()),
       telemetry(MAX_PACKET_PAYLOAD - 4),
       discover_limiter(4, 120),  // max 4 every 2 minutes
       anon_limiter(4, 180)   // max 4 every 3 minutes
@@ -1764,6 +1794,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
                      radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
   board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
   board.setLoRaFemPaGainEnabled(_prefs.radio_fem_txgain);
+  applyRxPowerSavingConfig(_prefs, _prefs.sf, _prefs.bw);
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
@@ -2405,12 +2436,14 @@ void MyMesh::loop() {
   if (set_radio_at && millisHasNowPassed(set_radio_at)) { // apply pending (temporary) radio params
     set_radio_at = 0;                                     // clear timer
     radio_driver.setParams(pending_freq, pending_bw, pending_sf, pending_cr);
+    applyRxPowerSavingConfig(_prefs, pending_sf, pending_bw);
     MESH_DEBUG_PRINTLN("Temp radio params");
   }
 
   if (revert_radio_at && millisHasNowPassed(revert_radio_at)) { // revert radio params to orig
     revert_radio_at = 0;                                        // clear timer
     radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+    applyRxPowerSavingConfig(_prefs, _prefs.sf, _prefs.bw);
     MESH_DEBUG_PRINTLN("Radio params restored");
   }
 
@@ -2431,5 +2464,7 @@ bool MyMesh::hasPendingWork() const {
 #if defined(WITH_BRIDGE)
   if (bridge.isRunning()) return true;  // bridge needs WiFi radio, can't sleep
 #endif
+  const RxPowerSavingControl* control = getRxPowerSavingControl();
+  if (control != nullptr && control->isRxPowerSavingCalibrationActive()) return true;
   return _mgr->getOutboundTotal() > 0;
 }
