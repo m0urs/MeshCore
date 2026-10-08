@@ -24,7 +24,7 @@ the firmware reports them as `v1.17.1.mups<n>` (test builds: `v1.17.1.dev-<hash>
 | PR #2670 | [Repeated sending of direct packets](https://github.com/meshcore-dev/MeshCore/pull/2670) | port branch `mu/pr-2670-ps17` | **partial port**, see below |
 | PR #1896 | [Fix 1970 date after crash/watchdog/brownout (ESP32)](https://github.com/meshcore-dev/MeshCore/pull/1896) | already in PowerSaving-v17 | – |
 | PR #2704 | [Time keeping for nRF52 across resets](https://github.com/meshcore-dev/MeshCore/pull/2704) | already in PowerSaving-v17 | – |
-| Own changes | branch `mu/mups17-own` | merge | default settings, this document |
+| Own changes | branch `mu/mups17-own` | merge | default settings (incl. 10 % duty cycle), companion rescue CLI extensions and fixes, this document |
 
 ### PR #2670 – partial port
 
@@ -72,6 +72,20 @@ then use a serial terminal (115200 baud) or the console on
 | `get max.resend` / `set max.resend <0-3>` | Resend attempts for direct packets (PR #2670), `0` = off |
 
 Changes are saved immediately; `reboot` to leave rescue mode.
+
+Rescue mode on devices with a single button (e.g. **T1000-E**): power on,
+release, then immediately press and hold the button for ~3 s (within the
+first 8 s). A long press later than 8 s after boot powers the device off.
+
+**Fixes compared to the original rescue CLI** (affect all commands, incl.
+`set pin`, `ls`, `cat`):
+
+- All replies end with `\r\n`. The web console on flasher.meshcore.io only
+  displays a line once it receives `\r\n`; with `\n` only, each reply
+  appeared one command late (or only after an extra Enter).
+- `\r`, `\n` and `\r\n` are all accepted as line end; empty lines are
+  ignored (no more `Error: unknown command` after an extra Enter).
+- Replies are flushed immediately.
 
 ### Changed behaviour
 
@@ -136,4 +150,4 @@ Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`
 
 | Tag | Date | Base / changes |
 |---|---|---|
-| `mups17-1` | _tbd_ | PowerSaving-v17 + main + PR #1349 + PR #2670 (partial) + own defaults |
+| `mups17-1` | _tbd_ | PowerSaving-v17 + main + PR #1349 + PR #2670 (partial) + own defaults (10 % duty cycle all roles) + companion rescue CLI (`af`, `dutycycle`, `max.resend`, CRLF fix) |
