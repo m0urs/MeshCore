@@ -2060,6 +2060,14 @@ void MyMesh::saveContacts() {
   _store->saveContacts(this, save_filter);
 }
 
+void MyMesh::printRescueDutyCycle() {   // mups: avoid %f (not supported by every printf)
+  float dc = 100.0f / (_prefs.airtime_factor + 1.0f);
+  int dc_int = (int)dc;
+  int dc_frac = (int)((dc - dc_int) * 10.0f + 0.5f);
+  if (dc_frac >= 10) { dc_int++; dc_frac = 0; }
+  Serial.printf("  > dutycycle %d.%d%% (af %s)\n", dc_int, dc_frac, StrHelper::ftoa(_prefs.airtime_factor));
+}
+
 void MyMesh::enterCLIRescue() {
   _cli_rescue = true;
   cli_command[0] = 0;
@@ -2089,6 +2097,46 @@ void MyMesh::checkCLIRescueCmd() {
         _prefs.ble_pin = atoi(&config[4]);
         savePrefs();
         Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
+      } else if (memcmp(config, "af ", 3) == 0) {           // mups: airtime factor
+        float af = atof(&config[3]);
+        if (af < 0.0f || af > 9.0f) {
+          Serial.println("  Error: af must be 0-9");
+        } else {
+          _prefs.airtime_factor = af;
+          savePrefs();
+          Serial.printf("  > af is now %s\n", StrHelper::ftoa(_prefs.airtime_factor));
+        }
+      } else if (memcmp(config, "dutycycle ", 10) == 0) {   // mups: duty cycle in percent (af = 100/dc - 1)
+        float dc = atof(&config[10]);
+        if (dc < 10.0f || dc > 100.0f) {
+          Serial.println("  Error: dutycycle must be 10-100");
+        } else {
+          _prefs.airtime_factor = (100.0f / dc) - 1.0f;
+          savePrefs();
+          printRescueDutyCycle();
+        }
+      } else if (memcmp(config, "max.resend ", 11) == 0) {  // mups: repeated sending (PR #2670)
+        int v = atoi(&config[11]);
+        if (v < 0 || v > 3) {
+          Serial.println("  Error: max.resend must be 0-3");
+        } else {
+          _prefs.max_resend_attempts = (uint8_t)v;
+          savePrefs();
+          Serial.printf("  > max.resend is now %d\n", (int)_prefs.max_resend_attempts);
+        }
+      } else {
+        Serial.printf("  Error: unknown config: %s\n", config);
+      }
+    } else if (memcmp(cli_command, "get ", 4) == 0) {       // mups: read settings
+      const char* config = &cli_command[4];
+      if (strcmp(config, "pin") == 0) {
+        Serial.printf("  > %06d\n", _prefs.ble_pin);
+      } else if (strcmp(config, "af") == 0) {
+        Serial.printf("  > %s\n", StrHelper::ftoa(_prefs.airtime_factor));
+      } else if (strcmp(config, "dutycycle") == 0) {
+        printRescueDutyCycle();
+      } else if (strcmp(config, "max.resend") == 0) {
+        Serial.printf("  > %d\n", (int)_prefs.max_resend_attempts);
       } else {
         Serial.printf("  Error: unknown config: %s\n", config);
       }

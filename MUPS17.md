@@ -55,7 +55,23 @@ Full syntax and details: [`docs/cli_commands.md`](docs/cli_commands.md).
 | `powerlog` | Repeater, Room Server, Sensor | PowerSaving-v17 | Last reset reason; on nRF52 also last shutdown reason and boot voltage |
 | `sensor` | Repeater, Room Server, Sensor | PowerSaving-v17 | Shows the I2C and GPS pins of the board and whether GPS is configured |
 | `get outpath` / `set outpath <hops\|direct\|clear\|flood>` | Repeater (remote admin only) | PowerSaving-v17 | Override the direct return path to the logged-in client |
-| `get max.resend` / `set max.resend <0-3>` | Repeater, Room Server (Companion: companion protocol only) | PR #2670 | Max. resend attempts for direct packets, `0` = off, default `2`. `get` also shows the resend ratio. |
+| `get max.resend` / `set max.resend <0-3>` | Repeater, Room Server (Companion: rescue CLI) | PR #2670 | Max. resend attempts for direct packets, `0` = off, default `2`. `get` also shows the resend ratio. |
+
+### Companion rescue CLI (new commands)
+
+Rescue mode: hold the user button for a long press within 8 s after boot,
+then use a serial terminal (115200 baud) or the console on
+<https://flasher.meshcore.io>. Original commands: `set pin`, `rebuild`,
+`erase`, `ls`, `cat`, `rm`, `reboot`.
+
+| Command | Description |
+|---|---|
+| `get pin` | Show the BLE PIN |
+| `get af` / `set af <0-9>` | Airtime factor |
+| `get dutycycle` / `set dutycycle <10-100>` | Duty cycle in percent (sets `af = 100/dc - 1`); EU: `set dutycycle 10` |
+| `get max.resend` / `set max.resend <0-3>` | Resend attempts for direct packets (PR #2670), `0` = off |
+
+Changes are saved immediately; `reboot` to leave rescue mode.
 
 ### Changed behaviour
 
@@ -88,8 +104,8 @@ their stored settings when flashed.
 `set dutycycle 10` on a repeater is the same setting: it just writes
 `af = 100/10 - 1 = 9.0`.
 
-A companion has no text CLI for this, and the MeshCore app has no setting for
-it. Existing companions can be changed with
+The MeshCore app has no setting for it. On existing companions use the
+**rescue CLI** (see below: `set dutycycle 10`), or
 [meshcore-cli](https://pypi.org/project/meshcore-cli/) (companion protocol
 command `SET_TUNING_PARAMS`, values x1000: rx delay, airtime factor):
 
