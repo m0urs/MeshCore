@@ -2078,9 +2078,12 @@ void MyMesh::checkCLIRescueCmd() {
   int len = strlen(cli_command);
   while (Serial.available() && len < sizeof(cli_command)-1) {
     char c = Serial.read();
-    if (c != '\n') {
-      cli_command[len++] = c;
-      cli_command[len] = 0;
+    if (c == '\n') c = '\r';   // mups: accept CR, LF or CRLF as line end (web consoles often send LF only)
+    cli_command[len++] = c;
+    cli_command[len] = 0;
+    if (c == '\r') {
+      if (len > 1) Serial.print("\r\n");   // echo line end (not for empty lines)
+      break;                   // process one line per call
     }
     Serial.print(c);  // echo
   }
@@ -2090,6 +2093,7 @@ void MyMesh::checkCLIRescueCmd() {
 
   if (len > 0 && cli_command[len - 1] == '\r') {  // received complete line
     cli_command[len - 1] = 0;  // replace newline with C string null terminator
+    if (cli_command[0] == 0) return;  // mups: ignore empty lines (e.g. 2nd half of CRLF)
 
     if (memcmp(cli_command, "set ", 4) == 0) {
       const char* config = &cli_command[4];
@@ -2283,6 +2287,7 @@ void MyMesh::checkCLIRescueCmd() {
     }
 
     cli_command[0] = 0;  // reset command buffer
+    Serial.flush();      // mups: push the reply out now (USB CDC may hold short outputs)
   }
 }
 
