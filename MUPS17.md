@@ -23,6 +23,7 @@ the firmware reports them as `v1.17.1.mups<n>` (test builds: `v1.17.1.dev-<hash>
 | PR #1349 | [Allow setting RTC clock backwards, fix elapsed-time underflow](https://github.com/meshcore-dev/MeshCore/pull/1349) | squashed cherry-pick | conflict in `ArduinoHelpers.h` resolved automatically (rerere) |
 | PR #2834 | [Separate replay counters for login and messages](https://github.com/meshcore-dev/MeshCore/pull/2834) | squashed cherry-pick | repeater / room server / sensor: login and CLI/DM timestamps no longer block each other when the companion clock and the app clock differ |
 | PR #3260 | [Send flood ACK on DM retries](https://github.com/meshcore-dev/MeshCore/pull/3260) | squashed cherry-pick | conflict with the PowerSaving `outpath` code in `simple_repeater/MyMesh.cpp` resolved once, then automatic (rerere) |
+| PR #3536 | [Beeps for silence and unsilence](https://github.com/meshcore-dev/MeshCore/pull/3536) | squashed cherry-pick | companion UI only; T1000-E button debounce 20 ms |
 | PR #2670 | [Repeated sending of direct packets](https://github.com/meshcore-dev/MeshCore/pull/2670) | port branch `mu/pr-2670-ps17` | **partial port**, see below |
 | PR #1896 | [Fix 1970 date after crash/watchdog/brownout (ESP32)](https://github.com/meshcore-dev/MeshCore/pull/1896) | already in PowerSaving-v17 | – |
 | PR #2704 | [Time keeping for nRF52 across resets](https://github.com/meshcore-dev/MeshCore/pull/2704) | already in PowerSaving-v17 | – |
@@ -93,6 +94,7 @@ first 8 s). A long press later than 8 s after boot powers the device off.
 
 | Command | Source | Change |
 |---|---|---|
+| Companion: toggling the buzzer (button / UI) | PR #3536 | Buzzer **on** plays a rising tone, buzzer **off** plays a falling tone and then mutes (previously: on = ACK tone, off = no sound). On the T1000-E the button debounce time is 20 ms instead of 50 ms (more reliable multi-press detection). |
 | ACKs for DMs and legacy CLI messages (companion, repeater, room server as receiver) | PR #3260 | When the sender **retries** a message, the ACK is sent as **flood** instead of over the stored direct path. Complements PR #2670 (per-hop resends cannot fix a broken path; a flood ACK can). Costs a little extra airtime on retries only; the sender does not learn a new path from it. |
 | Login to repeater / room server / sensor after CLI commands (and vice versa) | PR #2834 | Separate replay counters: a login (always stamped with the companion clock) and CLI commands/DMs (stamped with the app clock unless "Use companion clock …" is enabled) no longer reject each other as "replay" when the two clocks differ. |
 | `clock sync`, `time <epoch>`, setting the time from the companion app | PR #1349 | The clock may now be set **backwards** (previously rejected with "clock cannot go backwards"). Elapsed-time displays (e.g. `neighbors`) no longer jump to huge values afterwards. |
@@ -154,4 +156,4 @@ Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`
 
 | Tag | Date | Base / changes |
 |---|---|---|
-| `mups17-1` | _tbd_ | PowerSaving-v17 + main + PR #1349 + PR #2834 + PR #3260 + PR #2670 (partial) + own defaults (10 % duty cycle all roles) + companion rescue CLI (`af`, `dutycycle`, `max.resend`, CRLF fix) |
+| `mups17-1` | _tbd_ | PowerSaving-v17 + main + PR #1349 + PR #2834 + PR #3260 + PR #3536 + PR #2670 (partial) + own defaults (10 % duty cycle all roles) + companion rescue CLI (`af`, `dutycycle`, `max.resend`, CRLF fix) |
