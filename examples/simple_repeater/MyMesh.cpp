@@ -948,7 +948,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.direct_tx_delay_factor = 0.4f;
   _prefs.advert_interval = 120;         // 240 minutes
   _prefs.flood_advert_interval = 167;   // 167 hours
-  _prefs.flood_max = 18;
+  _prefs.flood_max = 10;
   _prefs.flood_max_unscoped = 4;
   _prefs.flood_max_advert = 4;
   _prefs.multi_acks = 1;
