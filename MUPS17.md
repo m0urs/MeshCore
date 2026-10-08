@@ -26,6 +26,8 @@ the firmware reports them as `v1.17.1.mups<n>` (test builds: `v1.17.1.dev-<hash>
 | PR #3536 | [Beeps for silence and unsilence](https://github.com/meshcore-dev/MeshCore/pull/3536) | squashed cherry-pick | companion UI only; T1000-E button debounce 20 ms |
 | PR #2670 | [Repeated sending of direct packets](https://github.com/meshcore-dev/MeshCore/pull/2670) | port branch `mu/pr-2670-ps17` | **partial port**, see below |
 | DMC packet filter | [Dutch-MeshCore `dmc-dev`](https://github.com/Dutch-MeshCore/MeshCore/tree/dmc-dev) (`34d1c16f`) | port branch `mu/dmc-filter-ps17` | **repeater only**, filter files taken unchanged + 6 hooks in `simple_repeater/MyMesh.*`; region gating / duty-cycle limits of DMC **not** included; **off by default** |
+| PR #2706 | [WiFi companion robustness](https://github.com/meshcore-dev/MeshCore/pull/2706) | adapted in `mu/mups17-own` | **only** the credential loading from `/wifi_config` at boot; the reconnect rewrite of the PR is **not** taken (conflicts with the interface manager in `main`) |
+| PR #2720 | [WiFi companion configuration via rescue CLI](https://github.com/meshcore-dev/MeshCore/pull/2720) | adapted in `mu/mups17-own` | `wifi_ssid`, `wifi_pwd`, `wifi_commit`, `wifi_show`, `wifi_clear`; replies with CRLF |
 | PR #1896 | [Fix 1970 date after crash/watchdog/brownout (ESP32)](https://github.com/meshcore-dev/MeshCore/pull/1896) | already in PowerSaving-v17 | – |
 | PR #2704 | [Time keeping for nRF52 across resets](https://github.com/meshcore-dev/MeshCore/pull/2704) | already in PowerSaving-v17 | – |
 | Own changes | branch `mu/mups17-own` | merge | default settings (incl. 10 % duty cycle), companion rescue CLI extensions and fixes, WiFi credentials via rescue CLI (adapted from PR #2706 + #2720), this document |
