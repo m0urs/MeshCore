@@ -907,7 +907,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   send_unscoped = false;
 
   // defaults
-  _prefs.airtime_factor = 1.0;
+  _prefs.airtime_factor = 9.0;   // mups: 10% duty cycle (EU regulation)
   strcpy(_prefs.node_name, "NONAME");
   _prefs.freq = LORA_FREQ;
   _prefs.sf = LORA_SF;

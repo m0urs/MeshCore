@@ -55,7 +55,7 @@ Full syntax and details: [`docs/cli_commands.md`](docs/cli_commands.md).
 | `powerlog` | Repeater, Room Server, Sensor | PowerSaving-v17 | Last reset reason; on nRF52 also last shutdown reason and boot voltage |
 | `sensor` | Repeater, Room Server, Sensor | PowerSaving-v17 | Shows the I2C and GPS pins of the board and whether GPS is configured |
 | `get outpath` / `set outpath <hops\|direct\|clear\|flood>` | Repeater (remote admin only) | PowerSaving-v17 | Override the direct return path to the logged-in client |
-| `get max.resend` / `set max.resend <0-3>` | Repeater, Room Server (Companion: via app) | PR #2670 | Max. resend attempts for direct packets, `0` = off, default `2`. `get` also shows the resend ratio. |
+| `get max.resend` / `set max.resend <0-3>` | Repeater, Room Server (Companion: companion protocol only) | PR #2670 | Max. resend attempts for direct packets, `0` = off, default `2`. `get` also shows the resend ratio. |
 
 ### Changed behaviour
 
@@ -79,13 +79,28 @@ their stored settings when flashed.
 | Spreading factor | 10 | **8** |
 | Coding rate | 5 | **8** |
 
+### Duty cycle (all roles: Companion, Repeater, Room Server, Sensor)
+
+| Setting | MeshCore default | mups17 |
+|---|---|---|
+| Airtime factor (`af`) | 1.0 (= 50 % duty cycle) | **9.0** (= **10 %** duty cycle, EU 869.4–869.65 MHz sub-band) |
+
+`set dutycycle 10` on a repeater is the same setting: it just writes
+`af = 100/10 - 1 = 9.0`.
+
+A companion has no text CLI for this, and the MeshCore app has no setting for
+it. Existing companions can be changed with
+[meshcore-cli](https://pypi.org/project/meshcore-cli/) (companion protocol
+command `SET_TUNING_PARAMS`, values x1000: rx delay, airtime factor):
+
+    meshcore-cli <connection options> set tuning 0,9000
+
 ### Repeater
 
 Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`.
 
 | Setting (CLI name) | MeshCore default | mups17 |
 |---|---|---|
-| `af` (airtime factor) | 1.0 | **9.0** (= 10 % duty cycle, EU) |
 | `rxdelay` | 0 | **2** |
 | `txdelay` | 0.5 | **1.0** |
 | `direct.txdelay` | 0.3 | **0.4** |
