@@ -28,7 +28,7 @@ the firmware reports them as `v1.17.1.mups<n>` (test builds: `v1.17.1.dev-<hash>
 | DMC packet filter | [Dutch-MeshCore `dmc-dev`](https://github.com/Dutch-MeshCore/MeshCore/tree/dmc-dev) (`34d1c16f`) | port branch `mu/dmc-filter-ps17` | **repeater only**, filter files taken unchanged + 6 hooks in `simple_repeater/MyMesh.*`; region gating / duty-cycle limits of DMC **not** included; **off by default** |
 | PR #1896 | [Fix 1970 date after crash/watchdog/brownout (ESP32)](https://github.com/meshcore-dev/MeshCore/pull/1896) | already in PowerSaving-v17 | – |
 | PR #2704 | [Time keeping for nRF52 across resets](https://github.com/meshcore-dev/MeshCore/pull/2704) | already in PowerSaving-v17 | – |
-| Own changes | branch `mu/mups17-own` | merge | default settings (incl. 10 % duty cycle), companion rescue CLI extensions and fixes, this document |
+| Own changes | branch `mu/mups17-own` | merge | default settings (incl. 10 % duty cycle), companion rescue CLI extensions and fixes, WiFi credentials via rescue CLI (adapted from PR #2706 + #2720), this document |
 
 ### PR #2670 – partial port
 
@@ -92,8 +92,18 @@ then use a serial terminal (115200 baud) or the console on
 | `get af` / `set af <0-9>` | Airtime factor |
 | `get dutycycle` / `set dutycycle <10-100>` | Duty cycle in percent (sets `af = 100/dc - 1`); EU: `set dutycycle 10` |
 | `get max.resend` / `set max.resend <0-3>` | Resend attempts for direct packets (PR #2670), `0` = off |
+| `wifi_ssid <ssid>`, `wifi_pwd <pwd>`, `wifi_commit` | **WiFi companions only:** stage SSID and password, `wifi_commit` saves them to `/wifi_config` and reboots (PR #2720, adapted) |
+| `wifi_show` / `wifi_clear` | Show staged values and whether `/wifi_config` exists / delete it (back to compiled-in defaults) and reboot |
 
 Changes are saved immediately; `reboot` to leave rescue mode.
+
+**WiFi companion (e.g. `Heltec_v3_companion_radio_wifi`):** on boot the
+firmware reads `/wifi_config` (written by `wifi_commit`); without it, the
+compiled-in `WIFI_SSID` / `WIFI_PWD` from `platformio.ini` are used
+(PR #2706, credential loading only – the reconnect logic of PowerSaving-v17 /
+`main` is kept). One firmware file can therefore be shared without anybody's
+WiFi password in it. Note: the rescue CLI echoes what you type, so the
+password is visible in the terminal while entering it.
 
 Rescue mode on devices with a single button (e.g. **T1000-E**): power on,
 release, then immediately press and hold the button for ~3 s (within the
