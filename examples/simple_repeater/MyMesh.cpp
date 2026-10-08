@@ -28,16 +28,16 @@ static void applyRxPowerSavingConfig(NodePrefs& prefs, uint8_t sf, float bw) {
 /* ------------------------------ Config -------------------------------- */
 
 #ifndef LORA_FREQ
-  #define LORA_FREQ 915.0
+  #define LORA_FREQ 869.618
 #endif
 #ifndef LORA_BW
-  #define LORA_BW 250
+  #define LORA_BW 62.5
 #endif
 #ifndef LORA_SF
-  #define LORA_SF 10
+  #define LORA_SF 8
 #endif
 #ifndef LORA_CR
-  #define LORA_CR 5
+  #define LORA_CR 8
 #endif
 #ifndef LORA_TX_POWER
   #define LORA_TX_POWER 20
@@ -965,6 +965,22 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max_advert = 8;
   _prefs.interference_threshold = 0; // disabled
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
+
+  // ---- mups: own defaults for NEW installs (EU regulation / MU guidelines, "Local" class) ----
+  _prefs.airtime_factor = 9.0;          // = 10% duty cycle (EU regulation)
+  _prefs.rx_delay_base = 2.0f;
+  _prefs.tx_delay_factor = 1.0f;
+  _prefs.direct_tx_delay_factor = 0.4f;
+  _prefs.advert_interval = 120;         // 240 minutes
+  _prefs.flood_advert_interval = 167;   // 167 hours
+  _prefs.flood_max = 10;
+  _prefs.flood_max_unscoped = 3;
+  _prefs.flood_max_advert = 3;
+  _prefs.multi_acks = 1;
+  _prefs.path_hash_mode = 2;
+  _prefs.loop_detect = LOOP_DETECT_MODERATE;
+  _prefs.agc_reset_interval = 3;        // stored as secs/4 -> 12 seconds
+  // ---- end mups defaults ----
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
