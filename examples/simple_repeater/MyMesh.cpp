@@ -949,12 +949,12 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.advert_interval = 120;         // 240 minutes
   _prefs.flood_advert_interval = 167;   // 167 hours
   _prefs.flood_max = 10;
-  _prefs.flood_max_unscoped = 4;
-  _prefs.flood_max_advert = 4;
+  _prefs.flood_max_unscoped = 3;
+  _prefs.flood_max_advert = 3;
   _prefs.multi_acks = 1;
   _prefs.path_hash_mode = 2;
-  _prefs.loop_detect = LOOP_DETECT_MINIMAL;
-  _prefs.agc_reset_interval = 0;
+  _prefs.loop_detect = LOOP_DETECT_MODERATE;
+  _prefs.agc_reset_interval = 3;        // stored as secs/4 -> 12 seconds
   // ---- end mups defaults ----
 
   // bridge defaults
