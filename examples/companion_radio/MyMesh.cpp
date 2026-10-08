@@ -2065,7 +2065,7 @@ void MyMesh::printRescueDutyCycle() {   // mups: avoid %f (not supported by ever
   int dc_int = (int)dc;
   int dc_frac = (int)((dc - dc_int) * 10.0f + 0.5f);
   if (dc_frac >= 10) { dc_int++; dc_frac = 0; }
-  Serial.printf("  > dutycycle %d.%d%% (af %s)\n", dc_int, dc_frac, StrHelper::ftoa(_prefs.airtime_factor));
+  Serial.printf("  > dutycycle %d.%d%% (af %s)\r\n", dc_int, dc_frac, StrHelper::ftoa(_prefs.airtime_factor));
 }
 
 void MyMesh::enterCLIRescue() {
@@ -2100,7 +2100,7 @@ void MyMesh::checkCLIRescueCmd() {
       if (memcmp(config, "pin ", 4) == 0) {
         _prefs.ble_pin = atoi(&config[4]);
         savePrefs();
-        Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
+        Serial.printf("  > pin is now %06d\r\n", _prefs.ble_pin);
       } else if (memcmp(config, "af ", 3) == 0) {           // mups: airtime factor
         float af = atof(&config[3]);
         if (af < 0.0f || af > 9.0f) {
@@ -2108,7 +2108,7 @@ void MyMesh::checkCLIRescueCmd() {
         } else {
           _prefs.airtime_factor = af;
           savePrefs();
-          Serial.printf("  > af is now %s\n", StrHelper::ftoa(_prefs.airtime_factor));
+          Serial.printf("  > af is now %s\r\n", StrHelper::ftoa(_prefs.airtime_factor));
         }
       } else if (memcmp(config, "dutycycle ", 10) == 0) {   // mups: duty cycle in percent (af = 100/dc - 1)
         float dc = atof(&config[10]);
@@ -2126,23 +2126,23 @@ void MyMesh::checkCLIRescueCmd() {
         } else {
           _prefs.max_resend_attempts = (uint8_t)v;
           savePrefs();
-          Serial.printf("  > max.resend is now %d\n", (int)_prefs.max_resend_attempts);
+          Serial.printf("  > max.resend is now %d\r\n", (int)_prefs.max_resend_attempts);
         }
       } else {
-        Serial.printf("  Error: unknown config: %s\n", config);
+        Serial.printf("  Error: unknown config: %s\r\n", config);
       }
     } else if (memcmp(cli_command, "get ", 4) == 0) {       // mups: read settings
       const char* config = &cli_command[4];
       if (strcmp(config, "pin") == 0) {
-        Serial.printf("  > %06d\n", _prefs.ble_pin);
+        Serial.printf("  > %06d\r\n", _prefs.ble_pin);
       } else if (strcmp(config, "af") == 0) {
-        Serial.printf("  > %s\n", StrHelper::ftoa(_prefs.airtime_factor));
+        Serial.printf("  > %s\r\n", StrHelper::ftoa(_prefs.airtime_factor));
       } else if (strcmp(config, "dutycycle") == 0) {
         printRescueDutyCycle();
       } else if (strcmp(config, "max.resend") == 0) {
-        Serial.printf("  > %d\n", (int)_prefs.max_resend_attempts);
+        Serial.printf("  > %d\r\n", (int)_prefs.max_resend_attempts);
       } else {
-        Serial.printf("  Error: unknown config: %s\n", config);
+        Serial.printf("  Error: unknown config: %s\r\n", config);
       }
     } else if (strcmp(cli_command, "rebuild") == 0) {
       bool success = _store->formatFileSystem();
@@ -2174,7 +2174,7 @@ void MyMesh::checkCLIRescueCmd() {
         path += 7; // skip "ExtraFS"
         is_fs2 = true;
       }
-      Serial.printf("Listing files in %s\n", path);
+      Serial.printf("Listing files in %s\r\n", path);
 
       // log each file and directory
       File root = _store->openRead(path);
@@ -2183,9 +2183,9 @@ void MyMesh::checkCLIRescueCmd() {
           File file = root.openNextFile();
           while (file) {
             if (file.isDirectory()) {
-              Serial.printf("[dir]  UserData%s/%s\n", path, file.name());
+              Serial.printf("[dir]  UserData%s/%s\r\n", path, file.name());
             } else {
-              Serial.printf("[file] UserData%s/%s (%d bytes)\n", path, file.name(), file.size());
+              Serial.printf("[file] UserData%s/%s (%d bytes)\r\n", path, file.name(), file.size());
             }
             // move to next file
             file = root.openNextFile();
@@ -2200,9 +2200,9 @@ void MyMesh::checkCLIRescueCmd() {
           File file = root2.openNextFile();
           while (file) {
             if (file.isDirectory()) {
-              Serial.printf("[dir]  ExtraFS%s/%s\n", path, file.name());
+              Serial.printf("[dir]  ExtraFS%s/%s\r\n", path, file.name());
             } else {
-              Serial.printf("[file] ExtraFS%s/%s (%d bytes)\n", path, file.name(), file.size());
+              Serial.printf("[file] ExtraFS%s/%s (%d bytes)\r\n", path, file.name(), file.size());
             }
             // move to next file
             file = root2.openNextFile();
@@ -2241,7 +2241,7 @@ void MyMesh::checkCLIRescueCmd() {
 
         // print hex
         mesh::Utils::printHex(Serial, buffer, file_size);
-        Serial.print("\n");
+        Serial.print("\r\n");
 
         file.close();
 
