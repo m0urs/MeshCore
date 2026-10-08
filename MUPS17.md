@@ -25,6 +25,7 @@ the firmware reports them as `v1.17.1.mups<n>` (test builds: `v1.17.1.dev-<hash>
 | PR #3260 | [Send flood ACK on DM retries](https://github.com/meshcore-dev/MeshCore/pull/3260) | squashed cherry-pick | conflict with the PowerSaving `outpath` code in `simple_repeater/MyMesh.cpp` resolved once, then automatic (rerere) |
 | PR #3536 | [Beeps for silence and unsilence](https://github.com/meshcore-dev/MeshCore/pull/3536) | squashed cherry-pick | companion UI only; T1000-E button debounce 20 ms |
 | PR #2670 | [Repeated sending of direct packets](https://github.com/meshcore-dev/MeshCore/pull/2670) | port branch `mu/pr-2670-ps17` | **partial port**, see below |
+| DMC packet filter | [Dutch-MeshCore `dmc-dev`](https://github.com/Dutch-MeshCore/MeshCore/tree/dmc-dev) (`34d1c16f`) | port branch `mu/dmc-filter-ps17` | **repeater only**, filter files taken unchanged + 6 hooks in `simple_repeater/MyMesh.*`; region gating / duty-cycle limits of DMC **not** included; **off by default** |
 | PR #1896 | [Fix 1970 date after crash/watchdog/brownout (ESP32)](https://github.com/meshcore-dev/MeshCore/pull/1896) | already in PowerSaving-v17 | – |
 | PR #2704 | [Time keeping for nRF52 across resets](https://github.com/meshcore-dev/MeshCore/pull/2704) | already in PowerSaving-v17 | – |
 | Own changes | branch `mu/mups17-own` | merge | default settings (incl. 10 % duty cycle), companion rescue CLI extensions and fixes, this document |
@@ -43,6 +44,23 @@ The RSSI part of the resend channel check is skipped while the radio sleeps
 between RX windows (same guard as the PowerSaving code), so it never wakes the
 radio and never breaks the duty cycle.
 
+### DMC packet filter
+
+Repeater packet filter from Dutch-MeshCore (`dmc-dev`, commit `34d1c16f`),
+developed in their branch `enhancement/dmc-dev-filtering`.
+
+- **Disabled by default** – nothing changes until `filter on`.
+- Own config file `/filter_prefs` on the repeater (independent of the normal
+  prefs). Removing the filter later leaves only this file behind.
+- Runs only in `allowPacketForward()`, i.e. on packets the repeater would
+  otherwise forward; it never touches own packets or PR #2670 resends.
+- RAM: about 5 KB.
+- Recommended start: `filter dryrun on` (count what would be dropped, but
+  still forward), check `filter stats`, then `filter dryrun off`.
+- Full reference: [`docs/packet_filter_reference.md`](docs/packet_filter_reference.md).
+- Updates: `build-mups17.sh` warns when the filter files change in
+  `dutch/dmc-dev`; then copy the new files into `mu/dmc-filter-ps17`.
+
 ---
 
 ## Additional and changed CLI commands (compared to MeshCore `main`)
@@ -58,6 +76,7 @@ Full syntax and details: [`docs/cli_commands.md`](docs/cli_commands.md).
 | `powerlog` | Repeater, Room Server, Sensor | PowerSaving-v17 | Last reset reason; on nRF52 also last shutdown reason and boot voltage |
 | `sensor` | Repeater, Room Server, Sensor | PowerSaving-v17 | Shows the I2C and GPS pins of the board and whether GPS is configured |
 | `get outpath` / `set outpath <hops\|direct\|clear\|flood>` | Repeater (remote admin only) | PowerSaving-v17 | Override the direct return path to the logged-in client |
+| `filter …` (`on`/`off`, `dryrun`, `types`, `advert`, `path`, `sender`, `text`, `age`, `stats`, `reset`, `help`) | Repeater | DMC packet filter | Configurable forwarding filter per packet type, per-origin advert window, path-prefix block, group-text sender/text rules and age limit, statistics incl. saved airtime. See `docs/packet_filter_reference.md`. |
 | `get max.resend` / `set max.resend <0-3>` | Repeater, Room Server (Companion: rescue CLI) | PR #2670 | Max. resend attempts for direct packets, `0` = off, default `2`. `get` also shows the resend ratio. |
 
 ### Companion rescue CLI (new commands)
@@ -156,4 +175,4 @@ Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`
 
 | Tag | Date | Base / changes |
 |---|---|---|
-| `mups17-1` | _tbd_ | PowerSaving-v17 + main + PR #1349 + PR #2834 + PR #3260 + PR #3536 + PR #2670 (partial) + own defaults (10 % duty cycle all roles) + companion rescue CLI (`af`, `dutycycle`, `max.resend`, CRLF fix) |
+| `mups17-1` | _tbd_ | PowerSaving-v17 + main + PR #1349 + PR #2834 + PR #3260 + PR #3536 + PR #2670 (partial) + DMC packet filter + own defaults (10 % duty cycle all roles) + companion rescue CLI (`af`, `dutycycle`, `max.resend`, CRLF fix) |
