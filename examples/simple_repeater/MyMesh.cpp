@@ -747,8 +747,8 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
 
         mesh::Packet *ack = createAck(ack_hash);
         if (ack) {
-          // Outpath PR
-          if (mesh::Packet::isValidPathLen(client->out_path_len)) {
+          // Outpath PR + PR #3260: flood the ACK when the client retries
+          if (mesh::Packet::isValidPathLen(client->out_path_len) && !is_retry) {
             sendDirect(ack, client->out_path, client->out_path_len, TXT_ACK_DELAY);
           } else {
             // Outpath PR
