@@ -497,6 +497,119 @@ filter help
 
 Referenz: `docs/packet_filter_reference.md`.
 
+#### Pakettypen
+
+Bei `filter hops` und `filter rate` wird der Typ **dezimal** angegeben (0–11).
+`0A`/`0B` geht nicht: das wird als `0` gelesen und ändert dann Typ 0.
+Der Filter prüft nur **Floods**; Direct-Pakete laufen immer durch.
+
+| Nr. | Hex | Name | Was es ist | Als Flood? | Standard Hops / Rate |
+|---|---|---|---|---|---|
+| 0 | 00 | REQ | Anfrage an bekannten Knoten (Status, Telemetrie, Remote-CLI) | ja, ohne bekannten Pfad | 8 / 5 je 60 s |
+| 1 | 01 | RESPONSE | Antwort auf REQ / ANON_REQ (Status-Werte, Login-Antwort) | ja, ohne Pfad | 8 / 5 je 60 s |
+| 2 | 02 | TXT_MSG | Direktnachricht (DM), auch CLI-Text | ja, ohne bekannten Pfad | 8 / 20 je 60 s |
+| 3 | 03 | ACK | Empfangsbestätigung einer DM | bei unbekanntem Pfad und (PR #3260) bei Wiederholungen | 8 / 5 je 60 s |
+| 4 | 04 | ADVERT | Bekanntmachung eines Knotens (Name, Schlüssel, Typ, Position) | ja (Flood-Advert) | 8 / 10 je 60 s |
+| 5 | 05 | GRP_TXT | Kanalnachricht (Public, `#name`, privat) | immer | 32 / 20 je 60 s |
+| 6 | 06 | GRP_DATA | Datenpaket an einen Kanal | ja | 8 / 5 je 60 s |
+| 7 | 07 | ANON_REQ | Anfrage ohne Kontakt, v. a. **Login** | ja, ohne Pfad | 8 / 5 je 60 s |
+| 8 | 08 | PATH | Pfad-Rückmeldung: so lernt der Absender den Direct-Weg | ja | 8 / 5 je 60 s |
+| 9 | 09 | TRACE | Traceroute mit SNR pro Hop | nein (nur direct) | 8 / 5 je 60 s |
+| 10 | 0A | MULTIPART | Teil einer Paketfolge, v. a. Mehrfach-ACKs | selten | 8 / 5 je 60 s |
+| 11 | 0B | CONTROL | Steuer-/Discovery-Pakete (`discover.neighbors`) | selten / Zero-Hop | 8 / 5 je 60 s |
+
+Die Ratenlimits gelten **pro Repeater und Typ, nicht pro Absender**. Die
+Standardwerte für 0, 1, 3, 7 und 8 (5 pro Minute) treffen in einem belebten
+Netz den normalen Ablauf (DM, Pfad lernen, ACK, Login) – deshalb im
+empfohlenen Einstieg abgeschaltet. Die Hop-Limits (8, mit `>=`) sind strenger
+als `flood.max 10` und werden deshalb neutral gestellt.
+
+#### Empfohlener Einstieg
+
+Ziel: nur gezielte Filter (Kanalsperre, Advert-Fenster, Malformed-Prüfung),
+die pauschalen Grundlimits aus. Erst beobachten, dann scharf schalten.
+
+**Schritt 1 – einrichten, nur zählen** (seriell oder Remote-Admin, ein Befehl pro Zeile):
+
+```
+filter reset
+filter dryrun on
+filter rate 0 0 60
+filter rate 1 0 60
+filter rate 2 0 60
+filter rate 3 0 60
+filter rate 4 0 60
+filter rate 5 0 60
+filter rate 6 0 60
+filter rate 7 0 60
+filter rate 8 0 60
+filter rate 9 0 60
+filter rate 10 0 60
+filter rate 11 0 60
+filter hops 0 64
+filter hops 1 64
+filter hops 2 64
+filter hops 3 64
+filter hops 4 64
+filter hops 5 64
+filter hops 6 64
+filter hops 7 64
+filter hops 8 64
+filter hops 9 64
+filter hops 10 64
+filter hops 11 64
+filter malformed on
+filter advert 12
+filter channel add #<kanal>
+filter on
+clear stats
+```
+
+`filter channel add` nur für Kanäle ohne lokale Nutzer, eine Zeile pro Kanal
+(Name buchstabengetreu, z. B. `#slovakia`). Ohne passenden Kanal weglassen.
+
+**Schritt 2 – prüfen**
+
+```
+filter rate                 # alle 0
+filter hops                 # alle 64
+filter channel list
+filter malformed            # on
+filter advert               # 12 h
+filter dryrun               # on
+```
+
+**Schritt 3 – 1 bis 2 Wochen beobachten**
+
+```
+filter                      # Treffer je Grund (dry-run)
+filter stats advert         # wie viele Adverts das Fenster abfangen würde
+filter stats channel        # Treffer je gesperrtem Kanal
+filter stats malformed
+filter stats air            # eingesparte Sendezeit
+filter stats top            # häufigste Absender
+```
+
+Fällt etwas auf (z. B. sehr viele Advert-Treffer von Knoten, die man sehen
+will): Fenster verkleinern (`filter advert 6`) oder ausschalten (`filter advert 0`).
+
+**Schritt 4 – scharf schalten**
+
+```
+filter dryrun off
+```
+
+**Zurück**
+
+```
+filter off                  # alles aus, Einstellungen bleiben gespeichert
+filter dryrun on            # oder: wieder nur zählen
+```
+
+Später, nur bei konkretem Bedarf: `filter hash 2` (erst wenn praktisch alle
+Knoten mehrbytige Pfad-Hashes senden), `filter path`, `filter sender`,
+`filter text`, `filter age`, Airtime-Reserve.
+
 ### Airtime-Reserve für scoped Floods (nur Repeater)
 
 ```
