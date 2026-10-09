@@ -31,7 +31,7 @@ On the final relay hop there is no downstream forward to overhear — the destin
 
 | Location | Value | Meaning |
 |---|---|---|
-| CLI `set max.resend <0–3>` / `get max.resend` | Default `0` in mups17 (PR: `2`) | Maximum resend attempts for DIRECT packets. `0` disables the feature entirely. |
+| CLI `set max.resend <0–3>` / `get max.resend` | Default `3` in mups17 (PR: `2`) | Maximum resend attempts for DIRECT packets. `0` disables the feature entirely. |
 | `NodePrefs` (persisted) | Byte offset `295` | Loaded/saved to file via `CommonCLI`; sanitised to 0–3. |
 | Companion-radio `CMD_SET_*` frame | Byte 6 in the path block | App-protocol path to set `max_resend_attempts` from the companion. |
 | `RESEND_INTERFERENCE_MARGIN` (compile-time) | Default `12` dB | Margin above the noise floor at which a resend is blocked (non-invasive LBT). |
@@ -54,4 +54,4 @@ On the final relay hop there is no downstream forward to overhear — the destin
 
 - Three feature commits on top of a merge of `upstream/dev`: `84bc3faf` (final-hop ACK), `2c48f09c` (non-invasive resend LBT + backoff), `110b9b40` (pool-reuse fix).
 - Applies exclusively to **DIRECT/TRACE-routed** traffic. Flood traffic is unaffected.
-- Only active when `max.resend > 0` (mups17 default `0` = off; PR default `2`).
+- Only active when `max.resend > 0` (mups17 default `3`; PR default `2`).

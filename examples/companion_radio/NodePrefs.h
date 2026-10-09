@@ -41,7 +41,7 @@ public:
   char default_scope_name[31];
   uint8_t default_scope_key[16];
   uint8_t powersaving_enabled = 0; // Power Saving
-  uint8_t max_resend_attempts; // 0 = disabled, 1-3, default 0 in mups17 (repeated sending)
+  uint8_t max_resend_attempts; // 0 = disabled, 1-3, default 3 in mups17 (repeated sending)
 
 private:
   class RadioPrefs : public ConfigSerializer {  // COPIED from CommonCLI (for now)

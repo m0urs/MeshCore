@@ -697,7 +697,7 @@ err=<RadioLib error>,fail=<count>[,erx=<us>,eslp=<us>]
 **Parameters:**
 - `value`: Maximum number of resend attempts for direct-routed packets (0–3). `0` disables resending entirely.
 
-**Default:** `0` (off) in mups17; PR #2670 uses `2`
+**Default:** `3` in mups17; PR #2670 uses `2`
 
 ---
 
