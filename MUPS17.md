@@ -131,6 +131,14 @@ scheduled.
 The own default settings (radio preset, duty cycle, repeater values) are
 deliberate presets, not features – see [Changed default settings](#changed-default-settings).
 
+### Assessed, not included
+
+| Candidate | Decision | Reason |
+|---|---|---|
+| PR [#2997](https://github.com/meshcore-dev/MeshCore/pull/2997) – longer login timeout for direct logins to repeaters | not included | Mostly obsolete since `fad11c90` (in `main` v1.17.1): a repeater now answers a direct login directly when it knows the way back; flood replies only remain when it does not know the client. Only affects repeaters 0–1 hops away, and lengthens the wait on real failures. Low risk – applies without conflict; add `2997` to `PRS` if logins to nearby repeaters time out although they succeed. |
+| PR [#1923](https://github.com/meshcore-dev/MeshCore/pull/1923) – SNR-driven dynamic coding rate for direct forwards | not included | Would save 25–33 % airtime per direct hop with our CR 4/8 preset, but: uses the inbound SNR from neighbour adverts (wrong direction, links can be asymmetric), no age limit (adverts every 240 min), no fallback – resends (PR #2670) repeat the same too-weak CR; SNR saturates at about +12 dB, so nearly every link would get CR 4/5; no measured delivery data; conflicts in 8 files with PowerSaving-v17 and our PR #2670 port. Reconsider if merged upstream with an SNR age limit and a fallback to the default CR on retries. |
+| [ACETyr/MeshCore](https://github.com/ACETyr/MeshCore) forward filter as a replacement for the DMC filter | not included (one idea taken over) | Large changes directly in `simple_repeater/MyMesh.cpp` plus the noise-floor estimator in `RadioLibWrappers` (conflicts with power saving). Its key-based channel matching was added to the DMC filter instead (own fix), its airtime reserve was implemented separately (`fwd.scoped.reserve`). |
+
 ---
 
 ## Additional and changed CLI commands (compared to MeshCore `main`)
