@@ -31,7 +31,8 @@ Kurzanleitungen für alle wiederkehrenden Aufgaben. Inhalt der Firmware
 | `mups17` | **Fertige Firmware.** Wird von `build-mups17.sh` bei jedem Lauf **neu gebaut** und per Force-Push überschrieben. | nur das Skript – **nie direkt committen** |
 | `mu/mups17-own` | Eigene Änderungen: Voreinstellungen, Rescue-CLI, WLAN, `MUPS17.md`, dieses Handbuch | du |
 | `mu/pr-2670-ps17` | Port von PR #2670 (Repeated Sending) auf PowerSaving-v17 | du (bei PR-Updates) |
-| `mu/dmc-filter-ps17` | Port des Dutch-MeshCore-Paketfilters | du (bei Filter-Updates) |
+| `mu/dmc-filter-ps17` | Port des Dutch-MeshCore-Paketfilters (+ eigener Fix: Kanalsperre per Schlüssel) | du (bei Filter-Updates) |
+| `mu/scoped-reserve-ps17` | Airtime-Reserve für scoped Floods (basiert auf `mu/dmc-filter-ps17`) | du |
 | `ufo6`, `ufo7`, `ufo8` | alte Firmware-Stände | – |
 
 `mups17` entsteht so (Reihenfolge im Skript):
@@ -40,7 +41,7 @@ Kurzanleitungen für alle wiederkehrenden Aufgaben. Inhalt der Firmware
 iotthings/PowerSaving-v17
   + upstream/main                     (MERGE_MAIN=yes)
   + PRs aus PRS=(…)                   (je ein Squash-Commit)
-  + mu/pr-2670-ps17, mu/dmc-filter-ps17, mu/mups17-own   (OWN=(…))
+  + mu/pr-2670-ps17, mu/dmc-filter-ps17, mu/scoped-reserve-ps17, mu/mups17-own   (OWN=(…))
 ```
 
 ### Remotes
@@ -441,10 +442,21 @@ set multi.acks 1
 set path.hash.mode 2
 set loop.detect moderate
 set agc.reset.interval 12
-set max.resend 2
 ```
 
 Prüfen: `ver`, `get dutycycle`, `get max.resend` (zeigt auch die Resend-Quote), `get radio.rxps`.
+
+### Optionale Funktionen (alle ab Werk aus, außer Power Saving)
+
+| Funktion | Einschalten | Ausschalten |
+|---|---|---|
+| Wiederholtes Senden (PR #2670) | `set max.resend 2` (1–3) | `set max.resend 0` |
+| DMC-Paketfilter | `filter on` (vorher `filter dryrun on`) | `filter off` |
+| Airtime-Reserve für scoped Floods | `set fwd.scoped.reserve 40` | `set fwd.scoped.reserve 0` |
+| RX Power Saving (PS17, ab Werk **an**) | `set radio.rxps on` | `set radio.rxps off` |
+
+Geräte, die schon mit `mups17-1` liefen, haben `max.resend 2` gespeichert und
+behalten das – bei Bedarf `set max.resend 0`.
 
 Radio-Preset: `set radio 869.618,62.5,8,8` (Format siehe `docs/cli_commands.md`), danach Neustart.
 
@@ -484,6 +496,20 @@ filter help
 ```
 
 Referenz: `docs/packet_filter_reference.md`.
+
+### Airtime-Reserve für scoped Floods (nur Repeater)
+
+```
+get fwd.scoped.reserve
+set fwd.scoped.reserve 40     # 40 % der eigenen Sendezeit je 60 s für Floods mit Region freihalten
+get fwd.scoped.stats          # weitergeleitet scoped/unscoped, verworfen, gesparte Airtime, air=genutzt/Budget
+set fwd.scoped.reserve 0      # aus (Standard)
+```
+
+Vorher prüfen, ob es sich lohnt: zwei Status-Abfragen im Abstand von einigen
+Minuten zu einer belebten Zeit, Δ Sendezeit ÷ Δ Laufzeit = Duty Cycle. Nur wenn
+der in die Nähe von 10 % kommt bzw. die TX-Warteschlange öfter belegt ist,
+greift die Reserve überhaupt. Zähler stehen nach Neustart wieder auf 0.
 
 ---
 

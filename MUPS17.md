@@ -8,6 +8,7 @@ the firmware reports them as `v1.17.1.mups<n>` (test builds: `v1.17.1.dev-<hash>
 ## Contents
 
 1. [What is included](#what-is-included)
+   - [Optional features – off by default](#optional-features--off-by-default)
 2. [Additional and changed CLI commands](#additional-and-changed-cli-commands-compared-to-meshcore-main)
 3. [Changed default settings](#changed-default-settings)
 4. [Release history](#release-history)
@@ -26,6 +27,7 @@ the firmware reports them as `v1.17.1.mups<n>` (test builds: `v1.17.1.dev-<hash>
 | PR #3536 | [Beeps for silence and unsilence](https://github.com/meshcore-dev/MeshCore/pull/3536) | squashed cherry-pick | companion UI only; T1000-E button debounce 20 ms |
 | PR #2670 | [Repeated sending of direct packets](https://github.com/meshcore-dev/MeshCore/pull/2670) | port branch `mu/pr-2670-ps17` | **partial port**, see below |
 | DMC packet filter | [Dutch-MeshCore `dmc-dev`](https://github.com/Dutch-MeshCore/MeshCore/tree/dmc-dev) (`34d1c16f`) | port branch `mu/dmc-filter-ps17` | **repeater only**, filter files taken unchanged + own fix (channel block by key) + 6 hooks in `simple_repeater/MyMesh.*`; region gating / duty-cycle limits of DMC **not** included; **off by default** |
+| Airtime reserve for scoped floods | idea and design from [ACETyr/MeshCore](https://github.com/ACETyr/MeshCore) (`fwd.scoped.reserve`) | port branch `mu/scoped-reserve-ps17` | **repeater only, off by default**; own implementation, own config file `/scoped_reserve` |
 | PR #2706 | [WiFi companion robustness](https://github.com/meshcore-dev/MeshCore/pull/2706) | adapted in `mu/mups17-own` | **only** the credential loading from `/wifi_config` at boot; the reconnect rewrite of the PR is **not** taken (conflicts with the interface manager in `main`) |
 | PR #2720 | [WiFi companion configuration via rescue CLI](https://github.com/meshcore-dev/MeshCore/pull/2720) | adapted in `mu/mups17-own` | `wifi_ssid`, `wifi_pwd`, `wifi_commit`, `wifi_show`, `wifi_clear`; replies with CRLF |
 | PR #1896 | [Fix 1970 date after crash/watchdog/brownout (ESP32)](https://github.com/meshcore-dev/MeshCore/pull/1896) | already in PowerSaving-v17 | – |
@@ -36,6 +38,9 @@ the firmware reports them as `v1.17.1.mups<n>` (test builds: `v1.17.1.dev-<hash>
 
 Taken over: resend of direct packets (Dispatcher/Mesh/Packet), `max.resend`
 setting and statistics, non-invasive channel check before a resend.
+
+**Off by default in mups17** (`max.resend 0`; the PR uses `2`). Switch on
+with `set max.resend 1..3`.
 
 Left out on purpose, because they conflict with RX power saving:
 
@@ -70,6 +75,56 @@ developed in their branch `enhancement/dmc-dev-filtering`.
   `dutch/dmc-dev`; then copy the new files into `mu/dmc-filter-ps17` and
   re-apply the own fix (see `MUPS17-HOWTO.md`, section 8).
 
+### Airtime reserve for scoped floods
+
+Repeater only, **off by default** (`fwd.scoped.reserve 0`). Idea and design
+from ACETyr/MeshCore (forward-filter Stage 4), implemented separately here.
+
+- Keeps a percentage of this repeater's **own TX allowance per 60 s** free for
+  **scoped** floods (packets with a region / transport code).
+- Allowance per window = 60 s × duty cycle, e.g. 6000 ms at 10 %.
+  With `set fwd.scoped.reserve 40`, 2400 ms of it stay reserved.
+- An **unscoped** flood is dropped only if forwarding it would eat into the
+  reserve. Quiet channel: everything is forwarded. Busy repeater: scoped
+  traffic gets priority.
+- Scoped floods and all direct traffic always pass. Repeaters never change a
+  packet's scope when forwarding, so an unscoped flood stays unscoped on every
+  hop.
+- Complements `flood.max.unscoped` (fixed hop limit) with a load-dependent limit.
+- Reserves only this node's TX time, not the radio channel.
+- Runs after the DMC filter. While `0`, the check returns before doing
+  anything (no counters, no airtime estimate).
+- Own config file `/scoped_reserve`; the normal prefs are untouched.
+- Counters (`get fwd.scoped.stats`) are in RAM and reset on reboot and with
+  `clear stats`.
+
+Worth it only if the repeater actually gets near its duty-cycle limit:
+compare two status requests (TX airtime / uptime) taken some minutes apart
+at a busy time, and watch the TX queue length.
+
+### Optional features – off by default
+
+Rule for mups17: a feature that changes how packets are sent or forwarded
+must be switched on by the user. While off, the firmware behaves as without
+the feature.
+
+| Feature | Default | Switch on |
+|---|---|---|
+| DMC packet filter (repeater) | off | `filter on` (start with `filter dryrun on`) |
+| Airtime reserve for scoped floods (repeater) | off | `set fwd.scoped.reserve <1-100>` |
+| Repeated sending of direct packets (PR #2670, all roles) | off (`0`) | `set max.resend <1-3>` (companion: rescue CLI) |
+| WiFi credentials from flash (WiFi companion) | compiled-in values | rescue CLI `wifi_ssid` / `wifi_pwd` / `wifi_commit` |
+| RX power saving (PowerSaving-v17, repeater / room server / sensor) | **on** for new installs (base firmware decision) | `set radio.rxps off` to switch off |
+
+Always active (bug fixes / small behaviour changes, not switchable):
+PR #1349, PR #2834, PR #3260, PR #3536 – see [Changed behaviour](#changed-behaviour).
+The internal parts of PR #2670 (separate ACK de-duplication table, packet
+hash cache) are always compiled in; with `max.resend 0` no resend is ever
+scheduled.
+
+The own default settings (radio preset, duty cycle, repeater values) are
+deliberate presets, not features – see [Changed default settings](#changed-default-settings).
+
 ---
 
 ## Additional and changed CLI commands (compared to MeshCore `main`)
@@ -86,7 +141,9 @@ Full syntax and details: [`docs/cli_commands.md`](docs/cli_commands.md).
 | `sensor` | Repeater, Room Server, Sensor | PowerSaving-v17 | Shows the I2C and GPS pins of the board and whether GPS is configured |
 | `get outpath` / `set outpath <hops\|direct\|clear\|flood>` | Repeater (remote admin only) | PowerSaving-v17 | Override the direct return path to the logged-in client |
 | `filter …` (`on`/`off`, `dryrun`, `types`, `advert`, `path`, `sender`, `text`, `age`, `stats`, `reset`, `help`) | Repeater | DMC packet filter | Configurable forwarding filter per packet type, per-origin advert window, path-prefix block, group-text sender/text rules and age limit, statistics incl. saved airtime. See `docs/packet_filter_reference.md`. |
-| `get max.resend` / `set max.resend <0-3>` | Repeater, Room Server (Companion: rescue CLI) | PR #2670 | Max. resend attempts for direct packets, `0` = off, default `2`. `get` also shows the resend ratio. |
+| `get max.resend` / `set max.resend <0-3>` | Repeater, Room Server (Companion: rescue CLI) | PR #2670 | Max. resend attempts for direct packets, `0` = off, default `0` (off). `get` also shows the resend ratio. |
+| `set fwd.scoped.reserve <0-100>` / `get fwd.scoped.reserve` | Repeater | own (idea: ACETyr) | Airtime reserve for scoped floods, % of the TX allowance per 60 s; `0` = off (default) |
+| `get fwd.scoped.stats` | Repeater | own | `reserve`, forwarded scoped / unscoped floods, dropped unscoped floods, saved airtime, TX airtime used / allowance in the current 60 s window |
 
 ### Companion rescue CLI (new commands)
 
