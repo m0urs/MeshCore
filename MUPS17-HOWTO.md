@@ -522,44 +522,32 @@ Der Filter prüft nur **Floods**; Direct-Pakete laufen immer durch.
 
 Die Ratenlimits gelten **pro Repeater und Typ, nicht pro Absender**. Die
 Standardwerte für 0, 1, 3, 7 und 8 (5 pro Minute) treffen in einem belebten
-Netz den normalen Ablauf (DM, Pfad lernen, ACK, Login) – deshalb im
-empfohlenen Einstieg abgeschaltet. Die Hop-Limits (8, mit `>=`) sind strenger
-als `flood.max 10` und werden deshalb neutral gestellt.
+Netz den normalen Ablauf (DM, Pfad lernen, ACK, Login) – deshalb vor dem
+Scharfschalten abgeschaltet (siehe unten). Die Hop-Limits (8, mit `>=`) sind strenger
+als `flood.max 10` – im Dry-Run mit `filter count` prüfen, bei störenden Treffern
+`filter hops <typ> 64`.
 
 #### Empfohlener Einstieg
 
-Ziel: nur gezielte Filter (Kanalsperre, Advert-Fenster, Malformed-Prüfung),
-die pauschalen Grundlimits aus. Erst beobachten, dann scharf schalten.
+Hintergrund: Bei 10 % Duty Cycle kann ein Repeater nur rund 6 s pro Minute
+senden (etwa 6–10 Weiterleitungen, alle Typen zusammen). Pauschale
+Ratenlimits greifen deshalb kaum – entscheidend ist, **wer die knappe
+Sendezeit bekommt**. Ziel des Filters: Pakete mit wenig Nutzen verwerfen
+(fremde Kanäle, wiederholte Adverts, 1-Byte-Hashes, kaputte Nachrichten),
+Routing-Pakete (PATH, ACK, Login, REQ, RESPONSE) nie pauschal begrenzen.
+Hop-Grenzen regeln bei uns schon `flood.max 10`, `flood.max.unscoped 3`,
+`flood.max.advert 3` und `loop.detect moderate`.
+
+Vorgehen: im Dry-Run **großzügig zählen** (alle Kandidaten an, Dutch-Standards
+für Hops/Raten bleiben), nach 1–2 Wochen anhand der Zahlen entscheiden, dann
+gezielt scharf schalten.
 
 **Schritt 1 – einrichten, nur zählen** (seriell oder Remote-Admin, ein Befehl pro Zeile):
 
 ```
 filter reset
 filter dryrun on
-filter rate 0 0 60
-filter rate 1 0 60
-filter rate 2 0 60
-filter rate 3 0 60
-filter rate 4 0 60
-filter rate 5 0 60
-filter rate 6 0 60
-filter rate 7 0 60
-filter rate 8 0 60
-filter rate 9 0 60
-filter rate 10 0 60
-filter rate 11 0 60
-filter hops 0 64
-filter hops 1 64
-filter hops 2 64
-filter hops 3 64
-filter hops 4 64
-filter hops 5 64
-filter hops 6 64
-filter hops 7 64
-filter hops 8 64
-filter hops 9 64
-filter hops 10 64
-filter hops 11 64
+filter hash 2
 filter malformed on
 filter advert 12
 filter channel add #<kanal>
@@ -567,50 +555,52 @@ filter on
 clear stats
 ```
 
-`filter channel add` nur für Kanäle ohne lokale Nutzer, eine Zeile pro Kanal
-(Name buchstabengetreu, z. B. `#slovakia`). Ohne passenden Kanal weglassen.
+`filter reset` setzt alles zurück (auch Filter aus) – deshalb `filter on` am
+Ende. `filter channel add` nur für Kanäle ohne lokale Nutzer, eine Zeile pro
+Kanal (Name buchstabengetreu, z. B. `#slovakia`); sonst weglassen.
 
-**Schritt 2 – prüfen**
+**Schritt 2 – 1 bis 2 Wochen beobachten**
 
-```
-filter rate                 # alle 0
-filter hops                 # alle 64
-filter channel list
-filter malformed            # on
-filter advert               # 12 h
-filter dryrun               # on
-```
+| Befehl | Frage dahinter |
+|---|---|
+| `filter` | Welcher Grund trifft wie viel? |
+| `filter count` | Bei welchen Pakettypen greifen die Hop-/Ratenlimits? |
+| `filter stats hash` | Wie viel Verkehr kommt noch mit 1-Byte-Hash? Viel → `filter hash 1` (aus) |
+| `filter stats advert` | Wie viele Adverts spart das Fenster? Zu viele „gewollte“ → `filter advert 6` oder `0` |
+| `filter stats channel` | Treffer je gesperrtem Kanal |
+| `filter stats malformed` | kaputte / gefälschte Public-Nachrichten |
+| `filter stats air` | eingesparte Sendezeit insgesamt |
+| `filter stats top` | häufigste Absender |
 
-**Schritt 3 – 1 bis 2 Wochen beobachten**
+Im Dry-Run wird ein Paket nur für den **ersten** zutreffenden Grund gezählt –
+die Zahlen überschneiden sich nicht.
 
-```
-filter                      # Treffer je Grund (dry-run)
-filter stats advert         # wie viele Adverts das Fenster abfangen würde
-filter stats channel        # Treffer je gesperrtem Kanal
-filter stats malformed
-filter stats air            # eingesparte Sendezeit
-filter stats top            # häufigste Absender
-```
+**Schritt 3 – scharf schalten**
 
-Fällt etwas auf (z. B. sehr viele Advert-Treffer von Knoten, die man sehen
-will): Fenster verkleinern (`filter advert 6`) oder ausschalten (`filter advert 0`).
-
-**Schritt 4 – scharf schalten**
+Vorher die Ratenlimits der Routing-Typen abschalten (Typ dezimal), der Rest
+bleibt so, wie die Zahlen es rechtfertigen:
 
 ```
+filter rate 0 0 60
+filter rate 1 0 60
+filter rate 3 0 60
+filter rate 7 0 60
+filter rate 8 0 60
 filter dryrun off
 ```
+
+Zeigt `filter count` auch bei anderen Typen störende Treffer, dort ebenso
+`filter rate <typ> 0 60` bzw. `filter hops <typ> 64`.
 
 **Zurück**
 
 ```
-filter off                  # alles aus, Einstellungen bleiben gespeichert
-filter dryrun on            # oder: wieder nur zählen
+filter dryrun on            # wieder nur zählen
+filter off                  # ganz aus, Einstellungen bleiben gespeichert
 ```
 
-Später, nur bei konkretem Bedarf: `filter hash 2` (erst wenn praktisch alle
-Knoten mehrbytige Pfad-Hashes senden), `filter path`, `filter sender`,
-`filter text`, `filter age`, Airtime-Reserve.
+Später, nur bei konkretem Bedarf: `filter path`, `filter sender`,
+`filter text`, `filter age`, Airtime-Reserve (`fwd.scoped.reserve`).
 
 ### Airtime-Reserve für scoped Floods (nur Repeater)
 
