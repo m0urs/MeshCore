@@ -456,7 +456,13 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     }
   }
   // DMC packet filter (Dutch-MeshCore)
-  return _filter.allowPacketForward(packet);
+  if (!_filter.allowPacketForward(packet)) return false;
+  // mups: airtime reserve for scoped floods (off by default)
+  if (packet->isRouteFlood()) {
+    return _scoped_reserve.allow(packet, recv_pkt_region->isWildcard(), _ms->getMillis(), getTotalAirTime(),
+                                 getAirtimeBudgetFactor(), _radio);
+  }
+  return true;
 }
 
 const char *MyMesh::getLogDateTime() {
@@ -974,6 +980,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   region_map.load(_fs);
   _filter.setRadio(_radio);   // for the saved-airtime estimate on drops
   _filter.load(_fs);
+  _scoped_reserve.load(_fs);   // mups
 
   // establish default-scope
   {
@@ -1220,6 +1227,7 @@ void MyMesh::clearStats() {
   resetStats();
   ((SimpleMeshTables *)getTables())->resetStats();
   _filter.resetStats();
+  _scoped_reserve.resetStats();   // mups
 }
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
@@ -1310,6 +1318,10 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     }
   } else if (memcmp(command, "filter", 6) == 0) {
     _filter.handleCommand(_fs, command, reply);
+  } else if ((memcmp(command, "set fwd.scoped.", 15) == 0 || memcmp(command, "get fwd.scoped.", 15) == 0)
+             && _scoped_reserve.handleCommand(_fs, command, reply, _ms->getMillis(), getTotalAirTime(),
+                                              getAirtimeBudgetFactor())) {
+    // mups: airtime reserve for scoped floods
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
