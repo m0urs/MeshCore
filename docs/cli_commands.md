@@ -689,6 +689,18 @@ err=<RadioLib error>,fail=<count>[,erx=<us>,eslp=<us>]
 
 ---
 
+#### View or change the maximum direct-route resend attempts
+**Usage:**
+- `get max.resend`
+- `set max.resend <value>`
+
+**Parameters:**
+- `value`: Maximum number of resend attempts for direct-routed packets (0–3). `0` disables resending entirely.
+
+**Default:** `3` in mups17; PR #2670 uses `2`
+
+---
+
 #### View or change the retransmit delay factor for flood traffic
 **Usage:**
 - `get txdelay`
