@@ -329,11 +329,17 @@ git log --oneline <alt>..dutch/dmc-dev -- examples/simple_repeater docs/packet_f
 git switch mu/dmc-filter-ps17
 git checkout dutch/dmc-dev -- examples/simple_repeater/{Filter.h,Filter.cpp,FilterStats.h,Limiter.h,AdvertLimiter.h,MessageAge.h,PathBlock.h,SenderRules.h} docs/packet_filter_reference.md
 git commit -m "Update DMC filter to dutch/dmc-dev $(git rev-parse --short dutch/dmc-dev)"
+# eigenen Fix (Kanalsperre per Schlüssel) wieder einspielen – er steckt in Filter.cpp
+git cherry-pick $(git log --format=%h -1 --grep="match blocked channels by key")
 git push origin mu/dmc-filter-ps17
 nano ~/meshcore/build-mups17.sh                  # TRACKED: neuen Hash eintragen
 git rev-parse dutch/dmc-dev                      # → neuer Hash
 ~/meshcore/build-mups17.sh
 ```
+
+Meldet der Cherry-Pick „empty“, hat Dutch-MeshCore den Fix selbst übernommen:
+`git cherry-pick --skip`. Bei Konflikt in `Filter.cpp`: Kanal-Sperrschleife muss
+`ChannelMAC::matches(...)` enthalten, Malformed-Prüfung `if (want_malformed && len > 0)`.
 
 Prüfen, ob neue Filterdateien dazugekommen sind oder sich die Einhängepunkte in
 `examples/simple_repeater/MyMesh.*` geändert haben (`git log -p … -- examples/simple_repeater/MyMesh.cpp`).

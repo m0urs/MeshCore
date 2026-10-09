@@ -25,7 +25,7 @@ the firmware reports them as `v1.17.1.mups<n>` (test builds: `v1.17.1.dev-<hash>
 | PR #3260 | [Send flood ACK on DM retries](https://github.com/meshcore-dev/MeshCore/pull/3260) | squashed cherry-pick | conflict with the PowerSaving `outpath` code in `simple_repeater/MyMesh.cpp` resolved once, then automatic (rerere) |
 | PR #3536 | [Beeps for silence and unsilence](https://github.com/meshcore-dev/MeshCore/pull/3536) | squashed cherry-pick | companion UI only; T1000-E button debounce 20 ms |
 | PR #2670 | [Repeated sending of direct packets](https://github.com/meshcore-dev/MeshCore/pull/2670) | port branch `mu/pr-2670-ps17` | **partial port**, see below |
-| DMC packet filter | [Dutch-MeshCore `dmc-dev`](https://github.com/Dutch-MeshCore/MeshCore/tree/dmc-dev) (`34d1c16f`) | port branch `mu/dmc-filter-ps17` | **repeater only**, filter files taken unchanged + 6 hooks in `simple_repeater/MyMesh.*`; region gating / duty-cycle limits of DMC **not** included; **off by default** |
+| DMC packet filter | [Dutch-MeshCore `dmc-dev`](https://github.com/Dutch-MeshCore/MeshCore/tree/dmc-dev) (`34d1c16f`) | port branch `mu/dmc-filter-ps17` | **repeater only**, filter files taken unchanged + own fix (channel block by key) + 6 hooks in `simple_repeater/MyMesh.*`; region gating / duty-cycle limits of DMC **not** included; **off by default** |
 | PR #2706 | [WiFi companion robustness](https://github.com/meshcore-dev/MeshCore/pull/2706) | adapted in `mu/mups17-own` | **only** the credential loading from `/wifi_config` at boot; the reconnect rewrite of the PR is **not** taken (conflicts with the interface manager in `main`) |
 | PR #2720 | [WiFi companion configuration via rescue CLI](https://github.com/meshcore-dev/MeshCore/pull/2720) | adapted in `mu/mups17-own` | `wifi_ssid`, `wifi_pwd`, `wifi_commit`, `wifi_show`, `wifi_clear`; replies with CRLF |
 | PR #1896 | [Fix 1970 date after crash/watchdog/brownout (ESP32)](https://github.com/meshcore-dev/MeshCore/pull/1896) | already in PowerSaving-v17 | – |
@@ -57,11 +57,18 @@ developed in their branch `enhancement/dmc-dev-filtering`.
 - Runs only in `allowPacketForward()`, i.e. on packets the repeater would
   otherwise forward; it never touches own packets or PR #2670 resends.
 - RAM: about 5 KB.
+- **Own fix – channel block by key:** a group packet carries its channel only
+  as a one-byte hash, which many channels share. Upstream `filter channel`
+  drops every channel on that byte. In mups17 a hash match must also verify
+  the packet's MAC under the channel key, so only the real channel is dropped
+  (the repeater still cannot read the messages). The malformed scan no longer
+  drops other channels that share the Public hash byte `0x11`.
 - Recommended start: `filter dryrun on` (count what would be dropped, but
   still forward), check `filter stats`, then `filter dryrun off`.
 - Full reference: [`docs/packet_filter_reference.md`](docs/packet_filter_reference.md).
 - Updates: `build-mups17.sh` warns when the filter files change in
-  `dutch/dmc-dev`; then copy the new files into `mu/dmc-filter-ps17`.
+  `dutch/dmc-dev`; then copy the new files into `mu/dmc-filter-ps17` and
+  re-apply the own fix (see `MUPS17-HOWTO.md`, section 8).
 
 ---
 
