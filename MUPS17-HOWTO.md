@@ -442,21 +442,23 @@ set multi.acks 1
 set path.hash.mode 2
 set loop.detect moderate
 set agc.reset.interval 12
+set max.resend 3
 ```
 
 Prüfen: `ver`, `get dutycycle`, `get max.resend` (zeigt auch die Resend-Quote), `get radio.rxps`.
 
-### Optionale Funktionen (alle ab Werk aus, außer Power Saving)
+### Kernfunktionen (ab Werk an) und optionale Funktionen (ab Werk aus)
 
-| Funktion | Einschalten | Ausschalten |
-|---|---|---|
-| Wiederholtes Senden (PR #2670) | `set max.resend 2` (1–3) | `set max.resend 0` |
-| DMC-Paketfilter | `filter on` (vorher `filter dryrun on`) | `filter off` |
-| Airtime-Reserve für scoped Floods | `set fwd.scoped.reserve 40` | `set fwd.scoped.reserve 0` |
-| RX Power Saving (PS17, ab Werk **an**) | `set radio.rxps on` | `set radio.rxps off` |
+| Funktion | Ab Werk | Einschalten | Ausschalten |
+|---|---|---|---|
+| RX Power Saving (PS17) | **an** | `set radio.rxps on` | `set radio.rxps off` |
+| Wiederholtes Senden (PR #2670) | **an, 3** | `set max.resend 3` (1–3) | `set max.resend 0` |
+| DMC-Paketfilter | aus | `filter on` (vorher `filter dryrun on`) | `filter off` |
+| Airtime-Reserve für scoped Floods | aus | `set fwd.scoped.reserve 40` | `set fwd.scoped.reserve 0` |
 
-Geräte, die schon mit `mups17-1` liefen, haben `max.resend 2` gespeichert und
-behalten das – bei Bedarf `set max.resend 0`.
+Bestehende Geräte behalten ihren gespeicherten `max.resend`-Wert
+(`mups17-1`: 2, zwischenzeitliche Testbuilds: 0) – auf 3 bringen mit
+`set max.resend 3` (Companion: Rescue-CLI).
 
 Radio-Preset: `set radio 869.618,62.5,8,8` (Format siehe `docs/cli_commands.md`), danach Neustart.
 
