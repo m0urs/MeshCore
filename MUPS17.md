@@ -266,3 +266,4 @@ Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`
 | Tag | Date | Base / changes |
 |---|---|---|
 | `mups17-1` | 2026-10-08 | PowerSaving-v17 + main + PR #1349 + PR #2834 + PR #3260 + PR #3536 + PR #2670 (partial) + DMC packet filter + own defaults (10 % duty cycle all roles) + companion rescue CLI (`af`, `dutycycle`, `max.resend`, `wifi_*`, CRLF fix) + WiFi credentials via rescue CLI (PR #2706 / #2720 adapted) |
+| `mups17-2` | 2026-10-09 | max.resend on by default (3); DMC filter: channel block by key (MAC); airtime reserve for scoped floods (off by default); handbook MUPS17-HOWTO.md |
