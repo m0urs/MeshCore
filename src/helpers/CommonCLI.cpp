@@ -266,6 +266,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       StrHelper::strncpy(&reply[14], _prefs->password, 160-15);   // echo back just to let admin know for sure!!
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
+      mesh::MainBoard::n_cad_busy = 0;   // mups
       strcpy(reply, "(OK - stats reset)");
     } else if (memcmp(command, "get ", 4) == 0) {
       handleGetCmd(sender_timestamp, command, reply);
