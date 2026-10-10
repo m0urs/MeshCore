@@ -413,7 +413,10 @@ bool RadioLibWrapper::isChannelActive() {
     // try to read a non-existent packet and count a spurious recv error.
     state = STATE_IDLE;
     startRecv();
-    if (result != RADIOLIB_CHANNEL_FREE) return true;
+    if (result != RADIOLIB_CHANNEL_FREE) {
+      mesh::MainBoard::n_cad_busy++;   // mups: 'get cad' -> channel busy (counter was never incremented)
+      return true;
+    }
   }
 
   return false;
