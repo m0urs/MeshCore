@@ -330,17 +330,26 @@ git log --oneline <alt>..dutch/dmc-dev -- examples/simple_repeater docs/packet_f
 git switch mu/dmc-filter-ps17
 git checkout dutch/dmc-dev -- examples/simple_repeater/{Filter.h,Filter.cpp,FilterStats.h,Limiter.h,AdvertLimiter.h,MessageAge.h,PathBlock.h,SenderRules.h} docs/packet_filter_reference.md
 git commit -m "Update DMC filter to dutch/dmc-dev $(git rev-parse --short dutch/dmc-dev)"
-# eigenen Fix (Kanalsperre per Schlüssel) wieder einspielen – er steckt in Filter.cpp
+# eigene Änderungen wieder einspielen (stecken in Filter.cpp / Filter.h):
 git cherry-pick $(git log --format=%h -1 --grep="match blocked channels by key")
+git cherry-pick $(git log --format=%h -1 --grep="mups defaults for new installs")
 git push origin mu/dmc-filter-ps17
 nano ~/meshcore/build-mups17.sh                  # TRACKED: neuen Hash eintragen
 git rev-parse dutch/dmc-dev                      # → neuer Hash
 ~/meshcore/build-mups17.sh
 ```
 
-Meldet der Cherry-Pick „empty“, hat Dutch-MeshCore den Fix selbst übernommen:
-`git cherry-pick --skip`. Bei Konflikt in `Filter.cpp`: Kanal-Sperrschleife muss
-`ChannelMAC::matches(...)` enthalten, Malformed-Prüfung `if (want_malformed && len > 0)`.
+Meldet ein Cherry-Pick „empty“, hat Dutch-MeshCore die Änderung selbst übernommen:
+`git cherry-pick --skip`. Bei Konflikt:
+
+- `Filter.cpp`: Kanal-Sperrschleife muss `ChannelMAC::matches(...)` enthalten,
+  Malformed-Prüfung `if (want_malformed && len > 0)`.
+- `Filter.h`: `#include "FilterDefaultsMups.h"` vor `class Filter`, im Konstruktor
+  und am Anfang von `resetPrefs()` `mupsFilterDefaults(_prefs);`, am Ende von
+  beiden `applyPrefs();` (Methode `applyPrefs()` muss erhalten bleiben).
+
+Eigene Filter-Defaults ändern: nur in `examples/simple_repeater/FilterDefaultsMups.h`
+(Branch `mu/dmc-filter-ps17`) – diese Datei gibt es bei Dutch nicht.
 
 Prüfen, ob neue Filterdateien dazugekommen sind oder sich die Einhängepunkte in
 `examples/simple_repeater/MyMesh.*` geändert haben (`git log -p … -- examples/simple_repeater/MyMesh.cpp`).
@@ -538,26 +547,30 @@ Routing-Pakete (PATH, ACK, Login, REQ, RESPONSE) nie pauschal begrenzen.
 Hop-Grenzen regeln bei uns schon `flood.max 10`, `flood.max.unscoped 3`,
 `flood.max.advert 3` und `loop.detect moderate`.
 
-Vorgehen: im Dry-Run **großzügig zählen** (alle Kandidaten an, Dutch-Standards
-für Hops/Raten bleiben), nach 1–2 Wochen anhand der Zahlen entscheiden, dann
-gezielt scharf schalten.
+Vorgehen: erst im Dry-Run zählen, nach 1–2 Wochen anhand der Zahlen
+entscheiden, dann scharf schalten.
+
+Die mups-Voreinstellungen (Neuinstallation und `filter reset`) sind schon
+passend gesetzt: Dry-Run an, Hash 1, Malformed an, Advert-Fenster 166 h,
+Altersgrenze 30 min, keine Ratenlimits, Hop-Limit 6 nur für REQ/RESPONSE/Login
+(Typ 0, 1, 7), sonst 64. Werte: `examples/simple_repeater/FilterDefaultsMups.h`.
 
 **Schritt 1 – einrichten, nur zählen** (seriell oder Remote-Admin, ein Befehl pro Zeile):
 
 ```
 filter reset
-filter dryrun on
-filter hash 2
-filter malformed on
-filter advert 12
 filter channel add #<kanal>
 filter on
 clear stats
 ```
 
-`filter reset` setzt alles zurück (auch Filter aus) – deshalb `filter on` am
-Ende. `filter channel add` nur für Kanäle ohne lokale Nutzer, eine Zeile pro
-Kanal (Name buchstabengetreu, z. B. `#slovakia`); sonst weglassen.
+`filter reset` setzt alles auf die mups-Voreinstellungen (Filter aus) – deshalb
+`filter on` am Ende. Bei einem neu installierten Repeater reicht `filter on`.
+`filter channel add` nur für Kanäle ohne lokale Nutzer, eine Zeile pro Kanal
+(Name buchstabengetreu, z. B. `#slovakia`); sonst weglassen.
+Für `filter age` auf eigenen `#`-Kanälen: `filter watch add #<kanal>` (max. 4).
+
+Prüfen: `filter dryrun`, `filter rate`, `filter hops`, `filter advert`, `filter age`.
 
 **Schritt 2 – 1 bis 2 Wochen beobachten**
 
@@ -565,8 +578,8 @@ Kanal (Name buchstabengetreu, z. B. `#slovakia`); sonst weglassen.
 |---|---|
 | `filter` | Welcher Grund trifft wie viel? |
 | `filter count` | Bei welchen Pakettypen greifen die Hop-/Ratenlimits? |
-| `filter stats hash` | Wie viel Verkehr kommt noch mit 1-Byte-Hash? Viel → `filter hash 1` (aus) |
-| `filter stats advert` | Wie viele Adverts spart das Fenster? Zu viele „gewollte“ → `filter advert 6` oder `0` |
+| `filter stats advert` | Wie viele Adverts spart das Fenster? Zu viele „gewollte“ → kleineres Fenster, z. B. `filter advert 24` |
+| `filter stats age` | wieder auftauchende alte Nachrichten |
 | `filter stats channel` | Treffer je gesperrtem Kanal |
 | `filter stats malformed` | kaputte / gefälschte Public-Nachrichten |
 | `filter stats air` | eingesparte Sendezeit insgesamt |
@@ -577,20 +590,14 @@ die Zahlen überschneiden sich nicht.
 
 **Schritt 3 – scharf schalten**
 
-Vorher die Ratenlimits der Routing-Typen abschalten (Typ dezimal), der Rest
-bleibt so, wie die Zahlen es rechtfertigen:
-
 ```
-filter rate 0 0 60
-filter rate 1 0 60
-filter rate 3 0 60
-filter rate 7 0 60
-filter rate 8 0 60
 filter dryrun off
 ```
 
-Zeigt `filter count` auch bei anderen Typen störende Treffer, dort ebenso
-`filter rate <typ> 0 60` bzw. `filter hops <typ> 64`.
+Bei Bedarf selektiv nachschärfen, z. B. ein Ratenlimit für einen Typ
+(`filter rate <typ> <anzahl> <sek>`, Typ dezimal) oder `filter hash 2`, wenn
+kaum noch 1-Byte-Hash-Verkehr kommt. Routing-Typen (0, 1, 3, 7, 8) nie
+pauschal begrenzen.
 
 **Zurück**
 

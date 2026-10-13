@@ -69,12 +69,31 @@ developed in their branch `enhancement/dmc-dev-filtering`.
   the packet's MAC under the channel key, so only the real channel is dropped
   (the repeater still cannot read the messages). The malformed scan no longer
   drops other channels that share the Public hash byte `0x11`.
-- Recommended start: `filter dryrun on` (count what would be dropped, but
-  still forward), check `filter stats`, then `filter dryrun off`.
+- **Own defaults** (new install without `/filter_prefs`, and `filter reset`),
+  set in `examples/simple_repeater/FilterDefaultsMups.h`:
+
+  | Setting | DMC default | mups17 |
+  |---|---|---|
+  | `filter` (on/off) | off | off |
+  | `filter dryrun` | off | **on** |
+  | `filter hash` | 1 | 1 |
+  | `filter malformed` | off | **on** |
+  | `filter advert` | 0 h (off) | **166 h** |
+  | `filter age` | off | **30 min** |
+  | `filter rate` (all types) | 5–20 per 60 s | **0 (off)** |
+  | `filter hops` REQ / RESPONSE / ANON_REQ (0, 1, 7) | 8 | **6** |
+  | `filter hops` all other types | 8 (group text 32) | **64 (off)** – `flood.max` applies |
+
+  Repeaters with a stored `/filter_prefs` keep their settings.
+- **Own fix – limiters in sync:** upstream set up the rate limiters and the
+  advert window only when `/filter_prefs` already existed, and `filter reset`
+  kept the old limits until reboot. Both now take effect immediately.
+- Recommended start: `filter on` (thanks to the defaults it only counts),
+  check `filter stats`, then `filter dryrun off`.
 - Full reference: [`docs/packet_filter_reference.md`](docs/packet_filter_reference.md).
 - Updates: `build-mups17.sh` warns when the filter files change in
   `dutch/dmc-dev`; then copy the new files into `mu/dmc-filter-ps17` and
-  re-apply the own fix (see `MUPS17-HOWTO.md`, section 8).
+  re-apply the own fixes (see `MUPS17-HOWTO.md`, section 8).
 
 ### Airtime reserve for scoped floods
 
