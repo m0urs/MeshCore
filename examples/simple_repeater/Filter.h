@@ -69,6 +69,8 @@ struct FilterPrefs {
   uint16_t age_mins = 0;                           // drop group text older than this, 0 = off
 };
 
+#include "FilterDefaultsMups.h"   // mups
+
 class Filter {
   ClientACL *_acl;
   mesh::RTCClock *_rtc;
@@ -105,14 +107,25 @@ public:
   Filter(ClientACL &acl, mesh::RTCClock &rtc) : _acl(&acl), _rtc(&rtc), _radio(nullptr), _rng_state(0xA5A5F00D) {
     memset(_sender_last, 0, sizeof(_sender_last));
     memset(_text_last, 0, sizeof(_text_last));
+    mupsFilterDefaults(_prefs);   // mups: own defaults for a new install
+    applyPrefs();                 // mups: load() does this only when /filter_prefs exists
+  }
+  // mups: bring the rate limiters and the advert window in line with _prefs
+  void applyPrefs() {
+    for (int i = 0; i < PAYLOAD_TYPE_COUNT; i++) {
+      _limiters[i].init(_prefs.payload_prefs[i].rate_limit, _prefs.payload_prefs[i].rate_secs, _prefs.soft_limit[i]);
+    }
+    _advert.setWindowHours(_prefs.advert_hours);
   }
   void setRadio(mesh::Radio *radio) { _radio = radio; }
   void resetPrefs(void) {
     _prefs = FilterPrefs();
+    mupsFilterDefaults(_prefs);   // mups
     _advert.setWindowHours(0);
     _advert.clear();
     memset(_sender_last, 0, sizeof(_sender_last));
     memset(_text_last, 0, sizeof(_text_last));
+    applyPrefs();                 // mups: limiters kept the old limits until reboot
   }
   void resetStats(void) { _cnt.reset(); }
   bool allowPacketForward(const mesh::Packet *packet);
