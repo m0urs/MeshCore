@@ -333,6 +333,7 @@ git commit -m "Update DMC filter to dutch/dmc-dev $(git rev-parse --short dutch/
 # eigene Änderungen wieder einspielen (stecken in Filter.cpp / Filter.h):
 git cherry-pick $(git log --format=%h -1 --grep="match blocked channels by key")
 git cherry-pick $(git log --format=%h -1 --grep="mups defaults for new installs")
+git cherry-pick $(git log --format=%h -1 --grep="mups default advert window")
 git push origin mu/dmc-filter-ps17
 nano ~/meshcore/build-mups17.sh                  # TRACKED: neuen Hash eintragen
 git rev-parse dutch/dmc-dev                      # → neuer Hash
@@ -551,7 +552,7 @@ Vorgehen: erst im Dry-Run zählen, nach 1–2 Wochen anhand der Zahlen
 entscheiden, dann scharf schalten.
 
 Die mups-Voreinstellungen (Neuinstallation und `filter reset`) sind schon
-passend gesetzt: Dry-Run an, Hash 1, Malformed an, Advert-Fenster 166 h,
+passend gesetzt: Dry-Run an, Hash 1, Malformed an, Advert-Fenster 24 h,
 Altersgrenze 30 min, keine Ratenlimits, Hop-Limit 6 nur für REQ/RESPONSE/Login
 (Typ 0, 1, 7), sonst 64. Werte: `examples/simple_repeater/FilterDefaultsMups.h`.
 

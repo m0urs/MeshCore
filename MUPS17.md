@@ -78,7 +78,7 @@ developed in their branch `enhancement/dmc-dev-filtering`.
   | `filter dryrun` | off | **on** |
   | `filter hash` | 1 | 1 |
   | `filter malformed` | off | **on** |
-  | `filter advert` | 0 h (off) | **166 h** |
+  | `filter advert` | 0 h (off) | **24 h** |
   | `filter age` | off | **30 min** |
   | `filter rate` (all types) | 5–20 per 60 s | **0 (off)** |
   | `filter hops` REQ / RESPONSE / ANON_REQ (0, 1, 7) | 8 | **6** |
