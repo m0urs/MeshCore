@@ -933,7 +933,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   send_unscoped = false;
 
   // defaults
-  _prefs.airtime_factor = 1.0;
+  _prefs.airtime_factor = 9.0;   // mups: 10% duty cycle (EU regulation)
   strcpy(_prefs.node_name, "NONAME");
   _prefs.freq = LORA_FREQ;
   _prefs.sf = LORA_SF;
@@ -2094,19 +2094,37 @@ void MyMesh::saveContacts() {
   _store->saveContacts(this, save_filter);
 }
 
+void MyMesh::printRescueDutyCycle() {   // mups: avoid %f (not supported by every printf)
+  float dc = 100.0f / (_prefs.airtime_factor + 1.0f);
+  int dc_int = (int)dc;
+  int dc_frac = (int)((dc - dc_int) * 10.0f + 0.5f);
+  if (dc_frac >= 10) { dc_int++; dc_frac = 0; }
+  Serial.printf("  > dutycycle %d.%d%% (af %s)\r\n", dc_int, dc_frac, StrHelper::ftoa(_prefs.airtime_factor));
+}
+
 void MyMesh::enterCLIRescue() {
   _cli_rescue = true;
   cli_command[0] = 0;
   Serial.println("========= CLI Rescue =========");
+#ifdef WIFI_SSID
+  Serial.println("WiFi: wifi_ssid <ssid>, wifi_pwd <pwd>, wifi_commit, wifi_show, wifi_clear");   // mups (PR #2720)
+#endif
 }
 
 void MyMesh::checkCLIRescueCmd() {
+#ifdef WIFI_SSID
+  static char staged_ssid[33] = {0};   // mups (PR #2720): WiFi credentials staged until wifi_commit
+  static char staged_pwd[65]  = {0};
+#endif
   int len = strlen(cli_command);
   while (Serial.available() && len < sizeof(cli_command)-1) {
     char c = Serial.read();
-    if (c != '\n') {
-      cli_command[len++] = c;
-      cli_command[len] = 0;
+    if (c == '\n') c = '\r';   // mups: accept CR, LF or CRLF as line end (web consoles often send LF only)
+    cli_command[len++] = c;
+    cli_command[len] = 0;
+    if (c == '\r') {
+      if (len > 1) Serial.print("\r\n");   // echo line end (not for empty lines)
+      break;                   // process one line per call
     }
     Serial.print(c);  // echo
   }
@@ -2116,15 +2134,56 @@ void MyMesh::checkCLIRescueCmd() {
 
   if (len > 0 && cli_command[len - 1] == '\r') {  // received complete line
     cli_command[len - 1] = 0;  // replace newline with C string null terminator
+    if (cli_command[0] == 0) return;  // mups: ignore empty lines (e.g. 2nd half of CRLF)
 
     if (memcmp(cli_command, "set ", 4) == 0) {
       const char* config = &cli_command[4];
       if (memcmp(config, "pin ", 4) == 0) {
         _prefs.ble_pin = atoi(&config[4]);
         savePrefs();
-        Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
+        Serial.printf("  > pin is now %06d\r\n", _prefs.ble_pin);
+      } else if (memcmp(config, "af ", 3) == 0) {           // mups: airtime factor
+        float af = atof(&config[3]);
+        if (af < 0.0f || af > 9.0f) {
+          Serial.println("  Error: af must be 0-9");
+        } else {
+          _prefs.airtime_factor = af;
+          savePrefs();
+          Serial.printf("  > af is now %s\r\n", StrHelper::ftoa(_prefs.airtime_factor));
+        }
+      } else if (memcmp(config, "dutycycle ", 10) == 0) {   // mups: duty cycle in percent (af = 100/dc - 1)
+        float dc = atof(&config[10]);
+        if (dc < 10.0f || dc > 100.0f) {
+          Serial.println("  Error: dutycycle must be 10-100");
+        } else {
+          _prefs.airtime_factor = (100.0f / dc) - 1.0f;
+          savePrefs();
+          printRescueDutyCycle();
+        }
+      } else if (memcmp(config, "max.resend ", 11) == 0) {  // mups: repeated sending (PR #2670)
+        int v = atoi(&config[11]);
+        if (v < 0 || v > 3) {
+          Serial.println("  Error: max.resend must be 0-3");
+        } else {
+          _prefs.max_resend_attempts = (uint8_t)v;
+          savePrefs();
+          Serial.printf("  > max.resend is now %d\r\n", (int)_prefs.max_resend_attempts);
+        }
       } else {
-        Serial.printf("  Error: unknown config: %s\n", config);
+        Serial.printf("  Error: unknown config: %s\r\n", config);
+      }
+    } else if (memcmp(cli_command, "get ", 4) == 0) {       // mups: read settings
+      const char* config = &cli_command[4];
+      if (strcmp(config, "pin") == 0) {
+        Serial.printf("  > %06d\r\n", _prefs.ble_pin);
+      } else if (strcmp(config, "af") == 0) {
+        Serial.printf("  > %s\r\n", StrHelper::ftoa(_prefs.airtime_factor));
+      } else if (strcmp(config, "dutycycle") == 0) {
+        printRescueDutyCycle();
+      } else if (strcmp(config, "max.resend") == 0) {
+        Serial.printf("  > %d\r\n", (int)_prefs.max_resend_attempts);
+      } else {
+        Serial.printf("  Error: unknown config: %s\r\n", config);
       }
     } else if (strcmp(cli_command, "rebuild") == 0) {
       bool success = _store->formatFileSystem();
@@ -2156,7 +2215,7 @@ void MyMesh::checkCLIRescueCmd() {
         path += 7; // skip "ExtraFS"
         is_fs2 = true;
       }
-      Serial.printf("Listing files in %s\n", path);
+      Serial.printf("Listing files in %s\r\n", path);
 
       // log each file and directory
       File root = _store->openRead(path);
@@ -2165,9 +2224,9 @@ void MyMesh::checkCLIRescueCmd() {
           File file = root.openNextFile();
           while (file) {
             if (file.isDirectory()) {
-              Serial.printf("[dir]  UserData%s/%s\n", path, file.name());
+              Serial.printf("[dir]  UserData%s/%s\r\n", path, file.name());
             } else {
-              Serial.printf("[file] UserData%s/%s (%d bytes)\n", path, file.name(), file.size());
+              Serial.printf("[file] UserData%s/%s (%d bytes)\r\n", path, file.name(), file.size());
             }
             // move to next file
             file = root.openNextFile();
@@ -2182,9 +2241,9 @@ void MyMesh::checkCLIRescueCmd() {
           File file = root2.openNextFile();
           while (file) {
             if (file.isDirectory()) {
-              Serial.printf("[dir]  ExtraFS%s/%s\n", path, file.name());
+              Serial.printf("[dir]  ExtraFS%s/%s\r\n", path, file.name());
             } else {
-              Serial.printf("[file] ExtraFS%s/%s (%d bytes)\n", path, file.name(), file.size());
+              Serial.printf("[file] ExtraFS%s/%s (%d bytes)\r\n", path, file.name(), file.size());
             }
             // move to next file
             file = root2.openNextFile();
@@ -2223,7 +2282,7 @@ void MyMesh::checkCLIRescueCmd() {
 
         // print hex
         mesh::Utils::printHex(Serial, buffer, file_size);
-        Serial.print("\n");
+        Serial.print("\r\n");
 
         file.close();
 
@@ -2262,6 +2321,42 @@ void MyMesh::checkCLIRescueCmd() {
 
       }
 
+#ifdef WIFI_SSID
+    } else if (memcmp(cli_command, "wifi_ssid ", 10) == 0) {   // mups (PR #2720)
+      strncpy(staged_ssid, &cli_command[10], sizeof(staged_ssid) - 1);
+      staged_ssid[sizeof(staged_ssid) - 1] = 0;
+      Serial.printf("  > SSID staged: \"%s\" (not saved yet, use wifi_commit)\r\n", staged_ssid);
+    } else if (memcmp(cli_command, "wifi_pwd ", 9) == 0) {
+      strncpy(staged_pwd, &cli_command[9], sizeof(staged_pwd) - 1);
+      staged_pwd[sizeof(staged_pwd) - 1] = 0;
+      Serial.print("  > Password staged (not saved yet, use wifi_commit)\r\n");
+    } else if (strcmp(cli_command, "wifi_commit") == 0) {
+      if (staged_ssid[0] == 0 || staged_pwd[0] == 0) {
+        Serial.print("  Error: stage both wifi_ssid and wifi_pwd before committing\r\n");
+      } else {
+        File f = _store->getPrimaryFS()->open("/wifi_config", "w", true);
+        if (f) {
+          f.print(staged_ssid); f.print('\n');
+          f.print(staged_pwd);  f.print('\n');
+          f.close();
+          Serial.printf("  > Saved SSID \"%s\" to flash, rebooting...\r\n", staged_ssid);
+          Serial.flush();
+          board.reboot();
+        } else {
+          Serial.print("  Error: failed to write /wifi_config\r\n");
+        }
+      }
+    } else if (strcmp(cli_command, "wifi_clear") == 0) {
+      _store->getPrimaryFS()->remove("/wifi_config");
+      Serial.print("  > /wifi_config removed, using compiled-in defaults on next boot, rebooting...\r\n");
+      Serial.flush();
+      board.reboot();
+    } else if (strcmp(cli_command, "wifi_show") == 0) {
+      Serial.printf("  Staged SSID: \"%s\"\r\n", staged_ssid[0] ? staged_ssid : "(none)");
+      Serial.printf("  Staged PWD:  %s\r\n", staged_pwd[0] ? "(set)" : "(none)");
+      bool has_config = _store->getPrimaryFS()->exists("/wifi_config");
+      Serial.printf("  /wifi_config on flash: %s\r\n", has_config ? "yes" : "no (using compiled-in defaults)");
+#endif
     } else if (strcmp(cli_command, "reboot") == 0) {
       board.reboot();  // doesn't return
     } else {
@@ -2269,6 +2364,7 @@ void MyMesh::checkCLIRescueCmd() {
     }
 
     cli_command[0] = 0;  // reset command buffer
+    Serial.flush();      // mups: push the reply out now (USB CDC may hold short outputs)
   }
 }
 

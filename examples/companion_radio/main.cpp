@@ -108,6 +108,12 @@ MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
 
 /* END GLOBAL OBJECTS */
 
+#if defined(WIFI_SSID) && defined(ESP32)
+// mups (PR #2706): WiFi credentials, from /wifi_config (rescue CLI) or compiled-in defaults
+static char _wifi_ssid[33];
+static char _wifi_pwd[65];
+#endif
+
 void halt() {
   while (1) ;
 }
@@ -210,7 +216,27 @@ void setup() {
       }
   });
 
-  WiFi.begin(WIFI_SSID, WIFI_PWD);
+  // mups (PR #2706): load credentials provisioned via rescue CLI; fall back to compiled-in defaults
+  strncpy(_wifi_ssid, WIFI_SSID, sizeof(_wifi_ssid) - 1);
+  strncpy(_wifi_pwd,  WIFI_PWD,  sizeof(_wifi_pwd)  - 1);
+  {
+    File wf = SPIFFS.open("/wifi_config", "r");
+    if (wf) {
+      String ssid = wf.readStringUntil('\n');
+      String pwd  = wf.readStringUntil('\n');
+      wf.close();
+      ssid.trim();
+      pwd.trim();
+      ssid.toCharArray(_wifi_ssid, sizeof(_wifi_ssid));
+      pwd.toCharArray(_wifi_pwd,   sizeof(_wifi_pwd));
+      WIFI_DEBUG_PRINTLN("Loaded credentials from flash, SSID: %s", _wifi_ssid);
+    } else {
+      WIFI_DEBUG_PRINTLN("No /wifi_config found, using compiled-in SSID: %s", _wifi_ssid);
+    }
+  }
+  WiFi.persistent(false);        // don't use/overwrite NVS-cached credentials
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(_wifi_ssid, _wifi_pwd);
   wifi_interface.begin(TCP_PORT);
   interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
 #endif
