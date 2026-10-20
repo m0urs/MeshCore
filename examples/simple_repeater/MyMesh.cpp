@@ -948,13 +948,14 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.direct_tx_delay_factor = 0.4f;
   _prefs.advert_interval = 120;         // 240 minutes
   _prefs.flood_advert_interval = 167;   // 167 hours
-  _prefs.flood_max = 10;
+  _prefs.flood_max = 15;
   _prefs.flood_max_unscoped = 3;
   _prefs.flood_max_advert = 3;
   _prefs.multi_acks = 1;
   _prefs.path_hash_mode = 2;
   _prefs.loop_detect = LOOP_DETECT_MODERATE;
   _prefs.agc_reset_interval = 3;        // stored as secs/4 -> 12 seconds
+  _prefs.cad_enabled = 1;               // hardware CAD before first TX ('set cad on')
   // ---- end mups defaults ----
 
   // bridge defaults

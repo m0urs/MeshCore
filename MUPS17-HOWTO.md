@@ -445,13 +445,14 @@ set txdelay 1.0
 set direct.txdelay 0.4
 set advert.interval 240
 set flood.advert.interval 167
-set flood.max 10
+set flood.max 15
 set flood.max.unscoped 3
 set flood.max.advert 3
 set multi.acks 1
 set path.hash.mode 2
 set loop.detect moderate
 set agc.reset.interval 12
+set cad on
 set max.resend 3
 ```
 
@@ -534,7 +535,7 @@ Die Ratenlimits gelten **pro Repeater und Typ, nicht pro Absender**. Die
 Standardwerte für 0, 1, 3, 7 und 8 (5 pro Minute) treffen in einem belebten
 Netz den normalen Ablauf (DM, Pfad lernen, ACK, Login) – deshalb vor dem
 Scharfschalten abgeschaltet (siehe unten). Die Hop-Limits (8, mit `>=`) sind strenger
-als `flood.max 10` – im Dry-Run mit `filter count` prüfen, bei störenden Treffern
+als `flood.max 15` – im Dry-Run mit `filter count` prüfen, bei störenden Treffern
 `filter hops <typ> 64`.
 
 #### Empfohlener Einstieg
@@ -545,7 +546,7 @@ Ratenlimits greifen deshalb kaum – entscheidend ist, **wer die knappe
 Sendezeit bekommt**. Ziel des Filters: Pakete mit wenig Nutzen verwerfen
 (fremde Kanäle, wiederholte Adverts, 1-Byte-Hashes, kaputte Nachrichten),
 Routing-Pakete (PATH, ACK, Login, REQ, RESPONSE) nie pauschal begrenzen.
-Hop-Grenzen regeln bei uns schon `flood.max 10`, `flood.max.unscoped 3`,
+Hop-Grenzen regeln bei uns schon `flood.max 15`, `flood.max.unscoped 3`,
 `flood.max.advert 3` und `loop.detect moderate`.
 
 Vorgehen: erst im Dry-Run zählen, nach 1–2 Wochen anhand der Zahlen

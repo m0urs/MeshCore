@@ -270,13 +270,14 @@ Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`
 | `direct.txdelay` | 0.3 | **0.4** |
 | `advert.interval` | 2 min | **240 min** |
 | `flood.advert.interval` | 47 h | **167 h** |
-| `flood.max` | 64 | **10** |
+| `flood.max` | 64 | **15** |
 | `flood.max.unscoped` | 64 | **3** |
 | `flood.max.advert` | 8 | **3** |
 | `multi.acks` | 0 | **1** |
 | `path.hash.mode` | 0 | **2** |
 | `loop.detect` | off | **moderate** |
 | `agc.reset.interval` | 0 (off) | **12 s** |
+| `cad` | off | **on** |
 
 ---
 
