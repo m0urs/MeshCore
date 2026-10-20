@@ -6,8 +6,8 @@ rebuild – never commit to it directly. Releases will be git tags `mups18-<n>`;
 the firmware reports them as `v1.18.0.mups<n>` (test builds: `v1.18.0.dev-<hash>`).
 
 > **Status: in preparation, not released.** PowerSaving-v18 does not compile
-> yet (upstream), companions have no power saving yet, and PR #2670 is not
-> ported yet. Use `mups17` for production devices.
+> yet (upstream) and companions have no power saving yet. Use `mups17` for
+> production devices.
 
 ## Contents
 
@@ -31,10 +31,35 @@ the firmware reports them as `v1.18.0.mups<n>` (test builds: `v1.18.0.dev-<hash>
 | PR #3260 | [Send flood ACK on DM retries](https://github.com/meshcore-dev/MeshCore/pull/3260) | squashed cherry-pick | – |
 | PR #3536 | [Beeps for silence and unsilence](https://github.com/meshcore-dev/MeshCore/pull/3536) | squashed cherry-pick | companion UI only; T1000-E button debounce 20 ms |
 | PR #2586 | [Repeater: set reply path (`outpath`)](https://github.com/meshcore-dev/MeshCore/pull/2586) | squashed cherry-pick | replaces the `outpath` command that PowerSaving-v17 had (removed in PowerSaving-v18); conflict in `simple_repeater/MyMesh.cpp` (ACK path with PR #3260) resolved once, then automatic (rerere) |
-| PR #2670 | [Repeated sending of direct packets](https://github.com/meshcore-dev/MeshCore/pull/2670) | **not yet included** | port to PowerSaving-v18 pending (overlaps with v1.18.0 change #3573 in `Mesh.cpp`) |
+| PR #2670 | [Repeated sending of direct packets](https://github.com/meshcore-dev/MeshCore/pull/2670) | port branch `mu/pr-2670-ps18` | **partial port**, see below |
 | DMC packet filter | [Dutch-MeshCore `dmc-dev`](https://github.com/Dutch-MeshCore/MeshCore/tree/dmc-dev) (`34d1c16f`) | port branch `mu/dmc-filter-ps18` | same as mups17: **repeater only, off by default**, own fixes and defaults |
 | Airtime reserve for scoped floods | idea and design from [ACETyr/MeshCore](https://github.com/ACETyr/MeshCore) | port branch `mu/scoped-reserve-ps18` | same as mups17: **repeater only, off by default** |
 | Own changes | branch `mu/mups18-own` | merge | default settings (radio preset, 10 % duty cycle, repeater values), this document |
+
+### PR #2670 – partial port
+
+Same scope as in mups17 (PR head `33e17bbd`): resend of direct packets
+(Dispatcher/Mesh/Packet), `max.resend` setting and statistics, non-invasive
+channel check before a resend. **On by default** with `max.resend 3` (the PR
+uses `2`); switch off with `set max.resend 0`.
+
+Left out on purpose, because they conflict with RX power saving:
+
+- noise-floor median estimator (needs continuous RX sampling every 50 ms)
+- RX-desync watchdog (the radio is legitimately not in RX mode while duty-cycling)
+
+Differences to the mups17 port:
+
+- **`Mesh.cpp`:** merged with v1.18.0 change #3573 – the direct retransmit
+  delay is computed before the node removes itself from the path (as in
+  v1.18.0), so relayed ACKs get the direct TX delay too.
+- **RX power saving guard (new):** the resend channel check of repeater and
+  room server skips the RSSI read while RX power saving has the chip in its
+  sleep phase – the same condition the PowerSaving code uses for its own SPI
+  probes (`isRxPowerSavingSleeping()` in `RadioLibWrappers.h`). A packet being
+  received still blocks the resend.
+- **Companion:** `get/set max.resend` is part of the official command handler,
+  so it works in the rescue CLI and the companion CLI.
 
 ### DMC packet filter
 
@@ -58,7 +83,7 @@ Unchanged from mups17 (`set fwd.scoped.reserve <0-100>`, default `0` = off,
 | Feature | Default | Switch off |
 |---|---|---|
 | RX power saving (PowerSaving-v18; repeater / room server / sensor) | on | `set radio.rxps off` |
-| Repeated sending of direct packets (PR #2670) | **not yet included** | – |
+| Repeated sending of direct packets (PR #2670, all roles) | on, `max.resend 3` | `set max.resend 0` |
 
 **Optional features – off by default:**
 
@@ -69,6 +94,9 @@ Unchanged from mups17 (`set fwd.scoped.reserve <0-100>`, default `0` = off,
 
 Always active (bug fixes / small behaviour changes, not switchable):
 PR #1349, PR #2834, PR #3260, PR #3536, PR #2586 (only when `outpath` is set).
+The internal parts of PR #2670 (separate ACK de-duplication table, packet
+hash cache) are always compiled in; with `max.resend 0` no resend is ever
+scheduled.
 
 ### Changes compared to mups17
 
@@ -82,6 +110,8 @@ PR #1349, PR #2834, PR #3260, PR #3536, PR #2586 (only when `outpath` is set).
 | `get cad` channel busy counter | own fix (#24) | counted by PowerSaving-v18 itself; own fix dropped |
 | Companion rescue CLI CRLF / LF fix | own fix | not taken over yet – to be tested with the v1.18.0 rescue CLI first |
 | `get pin` (companion) | own rescue CLI command | dropped (`set pin` exists) |
+| `max.resend` on the companion | own rescue CLI command | in the official command handler (rescue CLI **and** companion CLI) |
+| Resend channel check in the RXPS sleep phase | reads RSSI without guard | RSSI read skipped in the sleep phase (see PR #2670 above) |
 
 ---
 
@@ -100,6 +130,7 @@ Full syntax and details: [`docs/cli_commands.md`](docs/cli_commands.md).
 | `get cad` | all roles | PowerSaving-v18 | Shows `on`/`off` and the channel-busy counter |
 | `get outpath [path]` / `set outpath <hop1,hop2,…\|path\|direct\|clear\|flood>` | Repeater (remote admin only) | PR #2586 | Override the direct reply path to the logged-in client; `get/set outpath path` uses the path observed after the client's latest flood login |
 | `filter …` | Repeater | DMC packet filter | see `docs/packet_filter_reference.md` |
+| `get max.resend` / `set max.resend <0-3>` | all roles | PR #2670 | Max. resend attempts for direct packets, `0` = off, default `3`. On the repeater `get` also shows the resend ratio. |
 | `set fwd.scoped.reserve <0-100>` / `get fwd.scoped.reserve` / `get fwd.scoped.stats` | Repeater | own (idea: ACETyr) | Airtime reserve for scoped floods |
 
 ### Companion: official v1.18.0 commands used instead of own ones
@@ -113,6 +144,7 @@ CLI** (protocol command `CMD_RUN_CLI_COMMAND`, protocol V14+).
 | `get af` / `set af <0-9>` | Airtime factor |
 | `get dutycycle` / `set dutycycle <1-100>` | Duty cycle in percent (sets `af = 100/dc - 1`); EU: `set dutycycle 10` |
 | `get cad` / `set cad on\|off` | Hardware CAD before TX |
+| `get max.resend` / `set max.resend <0-3>` | Resend attempts for direct packets (PR #2670, added by mups), `0` = off |
 | `set pin <pin>` | BLE PIN |
 | `set wifi.ssid <ssid>` / `get wifi.ssid` | WiFi SSID (WiFi-capable builds, e.g. Heltec V3); reboot to apply |
 | `set wifi.pwd <pwd>` / `get wifi.pwd` | WiFi password; **`get wifi.pwd` shows it in plain text** |
