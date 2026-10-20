@@ -48,9 +48,11 @@ Left out on purpose, because they conflict with RX power saving:
 - noise-floor median estimator (needs continuous RX sampling every 50 ms)
 - RX-desync watchdog (the radio is legitimately not in RX mode while duty-cycling)
 
-The RSSI part of the resend channel check is skipped while the radio sleeps
-between RX windows (same guard as the PowerSaving code), so it never wakes the
-radio and never breaks the duty cycle.
+Note: the resend channel check (RSSI margin, repeater and room server) reads
+the RSSI register without the sleep-phase guard that the PowerSaving code uses
+for its own SPI probes. No problems have been observed in practice; mups18 adds
+the guard. (Earlier versions of this document wrongly stated that the guard was
+included.)
 
 ### DMC packet filter
 
@@ -174,7 +176,7 @@ Full syntax and details: [`docs/cli_commands.md`](docs/cli_commands.md).
 | `sensor` | Repeater, Room Server, Sensor | PowerSaving-v17 | Shows the I2C and GPS pins of the board and whether GPS is configured |
 | `get outpath` / `set outpath <hops\|direct\|clear\|flood>` | Repeater (remote admin only) | PowerSaving-v17 | Override the direct return path to the logged-in client |
 | `filter …` (`on`/`off`, `dryrun`, `types`, `advert`, `path`, `sender`, `text`, `age`, `stats`, `reset`, `help`) | Repeater | DMC packet filter | Configurable forwarding filter per packet type, per-origin advert window, path-prefix block, group-text sender/text rules and age limit, statistics incl. saved airtime. See `docs/packet_filter_reference.md`. |
-| `get max.resend` / `set max.resend <0-3>` | Repeater, Room Server (Companion: rescue CLI) | PR #2670 | Max. resend attempts for direct packets, `0` = off, default `3`. `get` also shows the resend ratio. |
+| `get max.resend` / `set max.resend <0-3>` | Repeater, Room Server (Companion: rescue CLI) | PR #2670 | Max. resend attempts for direct packets, `0` = off, default `3`. On the repeater `get` also shows the resend ratio. |
 | `set fwd.scoped.reserve <0-100>` / `get fwd.scoped.reserve` | Repeater | own (idea: ACETyr) | Airtime reserve for scoped floods, % of the TX allowance per 60 s; `0` = off (default) |
 | `get fwd.scoped.stats` | Repeater | own | `reserve`, forwarded scoped / unscoped floods, dropped unscoped floods, saved airtime, TX airtime used / allowance in the current 60 s window |
 
