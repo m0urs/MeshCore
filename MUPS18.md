@@ -190,6 +190,16 @@ their stored settings when flashed.
 
 On existing companions: `set dutycycle 10` in the companion CLI or rescue CLI.
 
+### Companion: CAD
+
+| Setting | MeshCore default | mups18 |
+|---|---|---|
+| `cad` (hardware channel activity detection before TX) | off | **on** (same as the mups repeater default) |
+
+Applies when the stored settings contain no `cad` value (new install, or settings
+written by mups17); a companion that already saved its settings with mups18 keeps
+its stored value. Switch with `set cad on|off` in the companion CLI or rescue CLI.
+
 ### Repeater
 
 Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`.
