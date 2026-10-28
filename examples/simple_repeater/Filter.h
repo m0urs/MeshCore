@@ -10,6 +10,7 @@
 #include "FilterStats.h"
 #include "Limiter.h"
 #include "MessageAge.h"
+#include "MessageContent.h"
 #include "PathBlock.h"
 #include "SenderRules.h"
 
@@ -87,6 +88,15 @@ class Filter {
   // to every reason alike. Returns the forwarding verdict.
   bool drop(const mesh::Packet *packet);
 
+  // Rebuild the per-type rate limiters from _prefs. Every path that replaces
+  // the prefs (defaults, reset, load) must end here, or the limiters keep
+  // enforcing whatever they held before (all-zero = no limit at all).
+  void initLimiters() {
+    for (uint8_t i = 0; i < PAYLOAD_TYPE_COUNT; ++i) {
+      _limiters[i].init(_prefs.payload_prefs[i].rate_limit, _prefs.payload_prefs[i].rate_secs, _prefs.soft_limit[i]);
+    }
+  }
+
   // xorshift32: cheap, dependency-free source of a random byte for the soft
   // cutoff. State is never allowed to reach 0 (that would freeze the sequence).
   uint8_t nextRandom() {
@@ -111,10 +121,9 @@ public:
     applyPrefs();                 // mups: load() does this only when /filter_prefs exists
   }
   // mups: bring the rate limiters and the advert window in line with _prefs
+  // (initLimiters() is the Dutch-MeshCore function, the advert window is a mups addition)
   void applyPrefs() {
-    for (int i = 0; i < PAYLOAD_TYPE_COUNT; i++) {
-      _limiters[i].init(_prefs.payload_prefs[i].rate_limit, _prefs.payload_prefs[i].rate_secs, _prefs.soft_limit[i]);
-    }
+    initLimiters();
     _advert.setWindowHours(_prefs.advert_hours);
   }
   void setRadio(mesh::Radio *radio) { _radio = radio; }
@@ -125,7 +134,7 @@ public:
     _advert.clear();
     memset(_sender_last, 0, sizeof(_sender_last));
     memset(_text_last, 0, sizeof(_text_last));
-    applyPrefs();                 // mups: limiters kept the old limits until reboot
+    applyPrefs();                 // mups: limiters kept the old limits until reboot (Dutch initLimiters + advert window)
   }
   void resetStats(void) { _cnt.reset(); }
   bool allowPacketForward(const mesh::Packet *packet);
