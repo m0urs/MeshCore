@@ -5,9 +5,9 @@ Branch `mups18` is **generated** by `build-mups18.sh` and force-pushed on every
 rebuild – never commit to it directly. Releases will be git tags `mups18-<n>`;
 the firmware reports them as `v1.18.0.mups<n>` (test builds: `v1.18.0.dev-<hash>`).
 
-> **Status: in preparation, not released.** PowerSaving-v18 does not compile
-> yet (upstream) and companions have no power saving yet. Use `mups17` for
-> production devices.
+> **Status: in preparation, not released.** Test builds of all models of the
+> build script compile without errors (2026-10-28); tests on devices are still
+> open. Use `mups17` for production devices.
 
 ## Contents
 
@@ -24,7 +24,7 @@ the firmware reports them as `v1.18.0.mups<n>` (test builds: `v1.18.0.dev-<hash>
 
 | Layer | Source | How it gets in | Notes |
 |---|---|---|---|
-| Base | [IoTThinks/MeshCore `PowerSaving-v18`](https://github.com/IoTThinks/MeshCore/tree/PowerSaving-v18) | branch base | RX duty-cycle power saving for repeater, room server and sensor, based on MeshCore `main` v1.18.0; **no companion power saving yet** |
+| Base | [IoTThinks/MeshCore `PowerSaving-v18`](https://github.com/IoTThinks/MeshCore/tree/PowerSaving-v18) | branch base | RX duty-cycle power saving for repeater, room server, sensor and (new in PowerSaving-v18) companion, based on MeshCore `main` v1.18.0 |
 | Release fixes | [meshcore-dev/MeshCore `main`](https://github.com/meshcore-dev/MeshCore/tree/main), pinned to v1.18.0 (`81dbae59`) | merge | pinned so later `main` commits only come in deliberately |
 | PR #1349 | [Allow setting RTC clock backwards, fix elapsed-time underflow](https://github.com/meshcore-dev/MeshCore/pull/1349) | squashed cherry-pick | conflict in `ArduinoHelpers.h` resolved automatically (rerere) |
 | PR #2834 | [Separate replay counters for login and messages](https://github.com/meshcore-dev/MeshCore/pull/2834) | squashed cherry-pick | repeater / room server / sensor |
@@ -82,7 +82,7 @@ Unchanged from mups17 (`set fwd.scoped.reserve <0-100>`, default `0` = off,
 
 | Feature | Default | Switch off |
 |---|---|---|
-| RX power saving (PowerSaving-v18; repeater / room server / sensor) | on | `set radio.rxps off` |
+| RX power saving (PowerSaving-v18; all roles) | on | `set radio.rxps off`; companion additionally `powersaving off` (see below) |
 | Repeated sending of direct packets (PR #2670, all roles) | on, `max.resend 3` | `set max.resend 0` |
 
 **Optional features – off by default:**
@@ -103,7 +103,7 @@ scheduled.
 | Topic | mups17 | mups18 |
 |---|---|---|
 | Base | PowerSaving-v17, MeshCore v1.17.1 | PowerSaving-v18, MeshCore v1.18.0 |
-| Companion power saving | yes (fixed `balanced` profile) | **not yet** in PowerSaving-v18 |
+| Companion power saving | yes (fixed `balanced` profile) | from PowerSaving-v18: `powersaving on\|off` (default on), RX duty cycle default `balanced` (level 6, preamble 16) with the full `radio.rxps` commands; ESP32 BLE builds: BLE sleep and CPU 10–80 MHz without light sleep; nRF52: sleeps when idle |
 | `outpath` (repeater) | from PowerSaving-v17 | from PR #2586 (PowerSaving-v18 no longer has it) |
 | WiFi credentials (WiFi companion) | own: `/wifi_config` via rescue CLI (PR #2706 / #2720 adapted) | **official** v1.18.0 commands `set wifi.ssid` / `set wifi.pwd` etc. (see below); own solution dropped |
 | `af` / `dutycycle` on the companion | own rescue CLI commands | **official**: shared radio command set in v1.18.0, available in the rescue CLI **and** the companion CLI (see below); own code dropped |
@@ -123,7 +123,8 @@ Full syntax and details: [`docs/cli_commands.md`](docs/cli_commands.md).
 
 | Command | Applies to | Source | Description |
 |---|---|---|---|
-| `get radio.rxps` / `set radio.rxps …` | Repeater, Room Server, Sensor | PowerSaving-v18 | RX duty-cycle power saving. On companions: `Error: unsupported` |
+| `get radio.rxps` / `set radio.rxps …` | all roles | PowerSaving-v18 | RX duty-cycle power saving (companions since PowerSaving-v18) |
+| `powersaving` / `powersaving on\|off` | Companion | PowerSaving-v18 | Shows / switches the companion power management (default `on`), saved in the preferences. ESP32 BLE builds: BLE sleep and CPU frequency 10–80 MHz (no light sleep), applied immediately; switched off: fixed CPU frequency. nRF52: sleep when idle. Independent of `set radio.rxps`. |
 | `get reboot.interval` / `set reboot.interval <hours>` | Repeater, Sensor | PowerSaving-v18 | Periodic reboot, `0` = off (default) |
 | `powerlog` | Repeater, Room Server, Sensor | PowerSaving-v18 | Last reset reason; on nRF52 also last shutdown reason and boot voltage |
 | `sensor` | Repeater, Room Server, Sensor | PowerSaving-v18 | Shows the I2C and GPS pins of the board and whether GPS is configured |
