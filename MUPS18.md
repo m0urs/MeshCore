@@ -2,12 +2,12 @@
 
 Custom MeshCore firmware maintained by Michael Urspringer.
 Branch `mups18` is **generated** by `build-mups18.sh` and force-pushed on every
-rebuild – never commit to it directly. Releases will be git tags `mups18-<n>`;
+rebuild – never commit to it directly. Releases are git tags `mups18-<n>`;
 the firmware reports them as `v1.18.0.mups<n>` (test builds: `v1.18.0.dev-<hash>`).
 
-> **Status: in preparation, not released.** Test builds of all models of the
-> build script compile without errors (2026-10-28); tests on devices are still
-> open. Use `mups17` for production devices.
+> **Status:** first release is `mups18-1` (see [Release history](#release-history)).
+> When updating from mups17, note that WiFi credentials have to be set again
+> (`set wifi.ssid` / `set wifi.pwd`, see below).
 
 ## Contents
 
