@@ -216,4 +216,4 @@ Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`
 
 | Tag | Date | Base / changes |
 |---|---|---|
-| – | – | not released yet |
+| `mups18-1` | 2026-10-28 | PowerSaving-v18 (MeshCore v1.18.0) + PR #1349, #2834, #3260, #3536, #2586 + PR #2670 (partial) + DMC packet filter + airtime reserve + own defaults |
