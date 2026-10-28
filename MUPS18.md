@@ -32,7 +32,7 @@ the firmware reports them as `v1.18.0.mups<n>` (test builds: `v1.18.0.dev-<hash>
 | PR #3536 | [Beeps for silence and unsilence](https://github.com/meshcore-dev/MeshCore/pull/3536) | squashed cherry-pick | companion UI only; T1000-E button debounce 20 ms |
 | PR #2586 | [Repeater: set reply path (`outpath`)](https://github.com/meshcore-dev/MeshCore/pull/2586) | squashed cherry-pick | replaces the `outpath` command that PowerSaving-v17 had (removed in PowerSaving-v18); conflict in `simple_repeater/MyMesh.cpp` (ACK path with PR #3260) resolved once, then automatic (rerere) |
 | PR #2670 | [Repeated sending of direct packets](https://github.com/meshcore-dev/MeshCore/pull/2670) | port branch `mu/pr-2670-ps18` | **partial port**, see below |
-| DMC packet filter | [Dutch-MeshCore `dmc-dev`](https://github.com/Dutch-MeshCore/MeshCore/tree/dmc-dev) (`34d1c16f`) | port branch `mu/dmc-filter-ps18` | same as mups17: **repeater only, off by default**, own fixes and defaults |
+| DMC packet filter | [Dutch-MeshCore `dmc-dev`](https://github.com/Dutch-MeshCore/MeshCore/tree/dmc-dev) (`ecfb2d41`) | port branch `mu/dmc-filter-ps18` | **repeater only, off by default**, own fixes and defaults as in mups17; filter files updated to the Dutch state `ecfb2d41` |
 | Airtime reserve for scoped floods | idea and design from [ACETyr/MeshCore](https://github.com/ACETyr/MeshCore) | port branch `mu/scoped-reserve-ps18` | same as mups17: **repeater only, off by default** |
 | Own changes | branch `mu/mups18-own` | merge | default settings (radio preset, 10 % duty cycle, repeater values), this document |
 
@@ -63,12 +63,16 @@ Differences to the mups17 port:
 
 ### DMC packet filter
 
-Unchanged from mups17 (same upstream commit `34d1c16f`, same own fixes:
-channel block by key, limiters in sync, own defaults in
-`examples/simple_repeater/FilterDefaultsMups.h`). See
+Updated to the Dutch-MeshCore state `ecfb2d41` (mups17: `34d1c16f`): the Dutch
+refactoring (shared `MessageContent.h`, rule and path list editing) and their
+fix that builds the rate limiters from the active prefs are included. Same own
+changes as in mups17: channel block by key, limiters in sync (now via the Dutch
+`initLimiters()`), own defaults in `examples/simple_repeater/FilterDefaultsMups.h`. See
 [MUPS17.md](https://github.com/m0urs/MeshCore/blob/mups17-release/MUPS17.md#dmc-packet-filter)
 and [`docs/packet_filter_reference.md`](docs/packet_filter_reference.md).
-Newer `dmc-dev` changes (after `34d1c16f`) are not included yet.
+Not taken over from `dmc-dev`: `dc.gate` / true TX duty window, the region fix for
+transport code 0, the companion receive filter, companion SNMP / OTA – they are
+outside the repeater packet filter.
 
 ### Airtime reserve for scoped floods
 
