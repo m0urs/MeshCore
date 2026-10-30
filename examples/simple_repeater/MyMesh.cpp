@@ -1231,6 +1231,7 @@ void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 void MyMesh::clearStats() {
   radio_driver.resetStats();
   resetStats();
+  resetCadStats();   // mups
   ((SimpleMeshTables *)getTables())->resetStats();
 }
 
@@ -1312,6 +1313,14 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     sprintf(reply, "> ok %u, crc %u, other %u (last %d), err share %u%%",
             (unsigned)ok, (unsigned)crc, (unsigned)other, (int)radio_driver.getLastRecvErrOther(),
             (unsigned)(all ? (uint64_t)(crc + other) * 100 / all : 0));
+  } else if (strcmp(command, "get cad") == 0) {
+    // mups: the common reply is "> on|off; channel busy: <n>" = number of hardware CAD scans that
+    // detected activity (several scans per waiting packet are possible). Append the per-packet view:
+    // blocked = send attempts that found the channel busy and had to wait (busy episodes; CAD,
+    //           preamble/header or RSSI gate), forced = sends started after the max busy duration.
+    _cli.handleCommand(sender_timestamp, command, reply);
+    sprintf(reply + strlen(reply), ", blocked %u, forced %u",
+            (unsigned)getNumCadBlocked(), (unsigned)getNumCadForced());
   } else if (sender_timestamp == 0 && strcmp(command, "get acl") == 0) {
     Serial.println("ACL:");
     for (int i = 0; i < acl.getNumClients(); i++) {
