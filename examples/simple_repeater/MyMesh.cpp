@@ -5,16 +5,16 @@
 /* ------------------------------ Config -------------------------------- */
 
 #ifndef LORA_FREQ
-  #define LORA_FREQ 915.0
+  #define LORA_FREQ 869.618
 #endif
 #ifndef LORA_BW
-  #define LORA_BW 250
+  #define LORA_BW 62.5
 #endif
 #ifndef LORA_SF
-  #define LORA_SF 10
+  #define LORA_SF 8
 #endif
 #ifndef LORA_CR
-  #define LORA_CR 5
+  #define LORA_CR 8
 #endif
 #ifndef LORA_TX_POWER
   #define LORA_TX_POWER 20
@@ -973,6 +973,23 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
   _prefs.loop_detect = LOOP_DETECT_MINIMAL;
 
+  // ---- mups: own defaults for NEW installs (EU regulation / MU guidelines, "Local" class) ----
+  _prefs.airtime_factor = 9.0;          // = 10% duty cycle (EU regulation)
+  _prefs.rx_delay_base = 2.0f;
+  _prefs.tx_delay_factor = 1.0f;
+  _prefs.direct_tx_delay_factor = 0.4f;
+  _prefs.advert_interval = 120;         // 240 minutes
+  _prefs.flood_advert_interval = 167;   // 167 hours
+  _prefs.flood_max = 15;
+  _prefs.flood_max_unscoped = 3;
+  _prefs.flood_max_advert = 3;
+  _prefs.multi_acks = 1;
+  _prefs.path_hash_mode = 2;
+  _prefs.loop_detect = LOOP_DETECT_MODERATE;
+  _prefs.agc_reset_interval = 3;        // stored as secs/4 -> 12 seconds
+  _prefs.cad_enabled = 1;               // hardware CAD before first TX ('set cad on')
+  // ---- end mups defaults ----
+
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
   _prefs.bridge_delay   = 500;  // milliseconds
@@ -1285,6 +1302,7 @@ void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 void MyMesh::clearStats() {
   radio_driver.resetStats();
   resetStats();
+  resetCadStats();   // mups
   ((SimpleMeshTables *)getTables())->resetStats();
   _filter.resetStats();
   _scoped_reserve.resetStats();   // mups
@@ -1457,6 +1475,78 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, ClientInfo* sender, char *
         strcpy(reply, "Err - bad pubkey");
       }
     }
+  } else if (memcmp(command, "get rx.errors", 13) == 0 && (command[13] == 0 || command[13] == ' ')) {
+    // mups: receive errors since the last reboot / "clear stats".
+    //   get rx.errors              totals by cause
+    //   get rx.errors snr|rssi|len histograms of correctly received frames ("ok") against payload-CRC-error
+    //                              frames ("pay") and header-error frames ("hdr")
+    //   get rx.errors last         the latest CRC-error frames: age, RSSI, SNR, length, first bytes
+    const char* arg = &command[13];
+    while (*arg == ' ') arg++;
+    static const char* const kind_names[3] = {"snr", "rssi", "len"};
+    static const char* const kind_labels[3] = {"<=-10,<=-5,<=0,<=5,>5 dB", "<=-120,<=-110,<=-100,<=-90,>-90 dBm",
+                                               "<=30,<=60,<=100,<=160,>160 B"};
+    int kind = -1;
+    for (int k = 0; k < 3; k++) {
+      if (strcmp(arg, kind_names[k]) == 0) kind = k;
+    }
+    if (strcmp(arg, "last") == 0) {
+      // latest CRC-error frames, newest first, as many as fit into the reply. One entry:
+      //   [h|u]<age>s/<rssi dBm>/<snr dB>/<length>/<first 4 bytes in hex>
+      // age = seconds since the frame; no prefix = payload CRC error, "h" = header error, "u" = chip cannot tell.
+      // The first bytes of a MeshCore frame are: header (route + payload type + version), then path length / transport codes.
+      int n = snprintf(reply, 150, "> last");
+      for (uint8_t i = 0; i < 8; i++) {
+        uint32_t age;
+        int rssi, snr10, plen;
+        uint8_t cls, b[4];
+        if (!radio_driver.getRxErrLast(i, &age, &rssi, &snr10, &plen, &cls, b)) break;
+        const int snr_abs = snr10 < 0 ? -snr10 : snr10;
+        char e[48];
+        int el = snprintf(e, sizeof(e), " %s%us/%d/%s%d.%d/%d/%02X%02X%02X%02X", cls == 2 ? "h" : cls == 0 ? "u" : "",
+                          (unsigned)age, rssi, snr10 < 0 ? "-" : "", snr_abs / 10, snr_abs % 10, plen, b[0], b[1], b[2], b[3]);
+        if (el < 0 || n + el >= 150) break;
+        memcpy(reply + n, e, el + 1);
+        n += el;
+      }
+      if (n == 6) strcpy(reply, "> last: none since boot / clear stats");
+    } else if (kind >= 0) {
+      // five buckets each for ok / pay / hdr, then the bucket limits (reply is cut at 150 characters)
+      uint32_t h[3][5];
+      for (int c = 0; c < 3; c++) {
+        for (int b = 0; b < 5; b++) h[c][b] = radio_driver.getRxHist(kind, c, b);
+      }
+      snprintf(reply, 150, "> %s ok %u,%u,%u,%u,%u pay %u,%u,%u,%u,%u hdr %u,%u,%u,%u,%u [%s]", kind_names[kind],
+               (unsigned)h[0][0], (unsigned)h[0][1], (unsigned)h[0][2], (unsigned)h[0][3], (unsigned)h[0][4],
+               (unsigned)h[1][0], (unsigned)h[1][1], (unsigned)h[1][2], (unsigned)h[1][3], (unsigned)h[1][4],
+               (unsigned)h[2][0], (unsigned)h[2][1], (unsigned)h[2][2], (unsigned)h[2][3], (unsigned)h[2][4],
+               kind_labels[kind]);
+    } else if (*arg) {
+      strcpy(reply, "Err - use: get rx.errors [snr|rssi|len|last]");
+    } else {
+      // ok    = frames received correctly (the "received packets" counter of the statistics)
+      // crc   = frames flagged as CRC mismatch by the driver, split into
+      //         pay = payload CRC failed (header was fine; collision / weak or foreign signal),
+      //         hdr = LoRa header error (no valid header), unk = chip cannot tell
+      // other = other readData() errors, "last" = RadioLib code of the latest one (0 = none), e.g. -705 SPI timeout
+      uint32_t crc = radio_driver.getPacketsRecvErrCrc();
+      uint32_t other = radio_driver.getPacketsRecvErrOther();
+      uint32_t ok = radio_driver.getPacketsRecv();
+      uint32_t all = ok + crc + other;
+      sprintf(reply, "> ok %u, crc %u (pay %u, hdr %u, unk %u), other %u (last %d), err share %u%%",
+              (unsigned)ok, (unsigned)crc, (unsigned)radio_driver.getPacketsRecvErrPay(),
+              (unsigned)radio_driver.getPacketsRecvErrHdr(), (unsigned)radio_driver.getPacketsRecvErrUnk(),
+              (unsigned)other, (int)radio_driver.getLastRecvErrOther(),
+              (unsigned)(all ? (uint64_t)(crc + other) * 100 / all : 0));
+    }
+  } else if (strcmp(command, "get cad") == 0) {
+    // mups: the common reply is "> on|off; channel busy: <n>" = number of hardware CAD scans that
+    // detected activity (several scans per waiting packet are possible). Append the per-packet view:
+    // blocked = send attempts that found the channel busy and had to wait (busy episodes; CAD,
+    //           preamble/header or RSSI gate), forced = sends started after the max busy duration.
+    _cli.handleCommand(sender_timestamp, command, reply);
+    sprintf(reply + strlen(reply), ", blocked %u, forced %u",
+            (unsigned)getNumCadBlocked(), (unsigned)getNumCadForced());
   } else if (sender_timestamp == 0 && strcmp(command, "get acl") == 0) {
     Serial.println("ACL:");
     for (int i = 0; i < acl.getNumClients(); i++) {
