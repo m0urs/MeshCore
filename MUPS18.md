@@ -60,6 +60,13 @@ Differences to the mups17 port:
   received still blocks the resend.
 - **Companion:** `get/set max.resend` is part of the official command handler,
   so it works in the rescue CLI and the companion CLI.
+- **Busy-wait timer reset (new, `Dispatcher::checkSend()`):** the 4 s limit for a
+  busy channel (`cad_busy_start`) is now cleared when no packet is due. PR #2670
+  can remove a queued resend while it waits for a free channel (downstream
+  forward overheard); the old start time then stayed, and the next packet that
+  met a busy channel was sent immediately instead of waiting. In the official
+  v1.18.0 a queued packet only leaves the queue by being sent, so the situation
+  does not arise there.
 
 ### DMC packet filter
 
