@@ -38,6 +38,7 @@ public:
   uint32_t getPacketsRecvErrUnk() const { return 0; }
   int16_t getLastRecvErrOther() const { return 0; }
   uint32_t getRxHist(uint8_t kind, uint8_t cls, uint8_t bucket) const { return 0; }   // mups: no histograms
+  bool getRxErrLast(uint8_t, uint32_t*, int*, int*, int*, uint8_t*, uint8_t*) const { return false; }   // mups: no error log
   void resetStats() { n_recv = n_sent = n_recv_errors = 0; }
 
   virtual float getLastRSSI() const override;

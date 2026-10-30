@@ -412,6 +412,37 @@ uint8_t RadioLibWrapper::classifyCrcError(uint32_t irq) {
   return 0;
 }
 
+// mups: remember the latest CRC-error frames (RSSI, SNR, length, first bytes) to help identify who
+// sends them. Uses _last_snr / _last_rssi, which recvRaw() has just read from the chip. "bytes" is
+// the receive buffer: RadioLib's readData() copies the frame into it before reporting a CRC error,
+// so the content is there, but it may be corrupted.
+void RadioLibWrapper::rxErrLogAdd(uint8_t cls, int pkt_len, const uint8_t* bytes) {
+  RxErrRec& r = _rx_err_log[_rx_err_log_next];
+  r.t_ms = millis();
+  r.rssi = (int16_t)(_last_rssi < 0 ? _last_rssi - 0.5f : _last_rssi + 0.5f);
+  float s4 = _last_snr * 4.0f;
+  if (s4 > 127.0f) s4 = 127.0f;
+  if (s4 < -127.0f) s4 = -127.0f;
+  r.snr4 = (int8_t)(s4 < 0 ? s4 - 0.5f : s4 + 0.5f);
+  r.cls = cls;
+  r.len = (uint16_t)pkt_len;
+  for (int i = 0; i < 4; i++) r.b[i] = (bytes && i < pkt_len) ? bytes[i] : 0;
+  _rx_err_log_next = (_rx_err_log_next + 1) % RX_ERR_LOG_SIZE;
+  if (_rx_err_log_n < RX_ERR_LOG_SIZE) _rx_err_log_n++;
+}
+
+bool RadioLibWrapper::getRxErrLast(uint8_t idx, uint32_t* age_s, int* rssi, int* snr10, int* len, uint8_t* cls, uint8_t* b4) const {
+  if (idx >= _rx_err_log_n) return false;
+  const RxErrRec& r = _rx_err_log[(_rx_err_log_next + RX_ERR_LOG_SIZE - 1 - idx) % RX_ERR_LOG_SIZE];
+  *age_s = (uint32_t)(millis() - r.t_ms) / 1000;
+  *rssi = r.rssi;
+  *snr10 = (int)r.snr4 * 10 / 4;   // tenths of dB, e.g. -10 quarter dB -> -25 = -2.5 dB
+  *len = r.len;
+  *cls = r.cls;
+  for (int i = 0; i < 4; i++) b4[i] = r.b[i];
+  return true;
+}
+
 int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   int len = 0;
   if (state & STATE_INT_READY) {
@@ -442,6 +473,7 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
             if (why == 1) { n_recv_err_pay++; rxHistAdd(1, pkt_len); }
             else if (why == 2) { n_recv_err_hdr++; rxHistAdd(2, pkt_len); }
             else { n_recv_err_unk++; }
+            rxErrLogAdd(why, pkt_len, bytes);   // mups: for "get rx.errors last"
           } else {
             n_recv_err_other++;
             _last_recv_err_other = (int16_t)err;

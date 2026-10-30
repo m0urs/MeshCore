@@ -1306,6 +1306,7 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     //   get rx.errors              totals by cause
     //   get rx.errors snr|rssi|len histograms of correctly received frames ("ok") against payload-CRC-error
     //                              frames ("pay") and header-error frames ("hdr")
+    //   get rx.errors last         the latest CRC-error frames: age, RSSI, SNR, length, first bytes
     const char* arg = &command[13];
     while (*arg == ' ') arg++;
     static const char* const kind_names[3] = {"snr", "rssi", "len"};
@@ -1315,7 +1316,27 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     for (int k = 0; k < 3; k++) {
       if (strcmp(arg, kind_names[k]) == 0) kind = k;
     }
-    if (kind >= 0) {
+    if (strcmp(arg, "last") == 0) {
+      // latest CRC-error frames, newest first, as many as fit into the reply. One entry:
+      //   [h|u]<age>s/<rssi dBm>/<snr dB>/<length>/<first 4 bytes in hex>
+      // age = seconds since the frame; no prefix = payload CRC error, "h" = header error, "u" = chip cannot tell.
+      // The first bytes of a MeshCore frame are: header (route + payload type + version), then path length / transport codes.
+      int n = snprintf(reply, 150, "> last");
+      for (uint8_t i = 0; i < 8; i++) {
+        uint32_t age;
+        int rssi, snr10, plen;
+        uint8_t cls, b[4];
+        if (!radio_driver.getRxErrLast(i, &age, &rssi, &snr10, &plen, &cls, b)) break;
+        const int snr_abs = snr10 < 0 ? -snr10 : snr10;
+        char e[48];
+        int el = snprintf(e, sizeof(e), " %s%us/%d/%s%d.%d/%d/%02X%02X%02X%02X", cls == 2 ? "h" : cls == 0 ? "u" : "",
+                          (unsigned)age, rssi, snr10 < 0 ? "-" : "", snr_abs / 10, snr_abs % 10, plen, b[0], b[1], b[2], b[3]);
+        if (el < 0 || n + el >= 150) break;
+        memcpy(reply + n, e, el + 1);
+        n += el;
+      }
+      if (n == 6) strcpy(reply, "> last: none since boot / clear stats");
+    } else if (kind >= 0) {
       // five buckets each for ok / pay / hdr, then the bucket limits (reply is cut at 150 characters)
       uint32_t h[3][5];
       for (int c = 0; c < 3; c++) {
@@ -1327,7 +1348,7 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
                (unsigned)h[2][0], (unsigned)h[2][1], (unsigned)h[2][2], (unsigned)h[2][3], (unsigned)h[2][4],
                kind_labels[kind]);
     } else if (*arg) {
-      strcpy(reply, "Err - use: get rx.errors [snr|rssi|len]");
+      strcpy(reply, "Err - use: get rx.errors [snr|rssi|len|last]");
     } else {
       // ok    = frames received correctly (the "received packets" counter of the statistics)
       // crc   = frames flagged as CRC mismatch by the driver, split into
