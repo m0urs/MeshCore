@@ -1302,17 +1302,48 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       }
     }
   } else if (memcmp(command, "get rx.errors", 13) == 0 && (command[13] == 0 || command[13] == ' ')) {
-    // mups: receive errors by cause, since the last reboot / "clear stats".
-    // crc   = frames received completely but with a failed payload CRC (collisions, weak or foreign signals)
-    // other = other readData() errors, "last" = RadioLib code of the latest one (0 = none), e.g. -705 SPI timeout
-    // ok    = frames received correctly (the "received packets" counter of the statistics)
-    uint32_t crc = radio_driver.getPacketsRecvErrCrc();
-    uint32_t other = radio_driver.getPacketsRecvErrOther();
-    uint32_t ok = radio_driver.getPacketsRecv();
-    uint32_t all = ok + crc + other;
-    sprintf(reply, "> ok %u, crc %u, other %u (last %d), err share %u%%",
-            (unsigned)ok, (unsigned)crc, (unsigned)other, (int)radio_driver.getLastRecvErrOther(),
-            (unsigned)(all ? (uint64_t)(crc + other) * 100 / all : 0));
+    // mups: receive errors since the last reboot / "clear stats".
+    //   get rx.errors              totals by cause
+    //   get rx.errors snr|rssi|len histograms of correctly received frames ("ok") against payload-CRC-error
+    //                              frames ("pay") and header-error frames ("hdr")
+    const char* arg = &command[13];
+    while (*arg == ' ') arg++;
+    static const char* const kind_names[3] = {"snr", "rssi", "len"};
+    static const char* const kind_labels[3] = {"<=-10,<=-5,<=0,<=5,>5 dB", "<=-120,<=-110,<=-100,<=-90,>-90 dBm",
+                                               "<=30,<=60,<=100,<=160,>160 B"};
+    int kind = -1;
+    for (int k = 0; k < 3; k++) {
+      if (strcmp(arg, kind_names[k]) == 0) kind = k;
+    }
+    if (kind >= 0) {
+      // five buckets each for ok / pay / hdr, then the bucket limits (reply is cut at 150 characters)
+      uint32_t h[3][5];
+      for (int c = 0; c < 3; c++) {
+        for (int b = 0; b < 5; b++) h[c][b] = radio_driver.getRxHist(kind, c, b);
+      }
+      snprintf(reply, 150, "> %s ok %u,%u,%u,%u,%u pay %u,%u,%u,%u,%u hdr %u,%u,%u,%u,%u [%s]", kind_names[kind],
+               (unsigned)h[0][0], (unsigned)h[0][1], (unsigned)h[0][2], (unsigned)h[0][3], (unsigned)h[0][4],
+               (unsigned)h[1][0], (unsigned)h[1][1], (unsigned)h[1][2], (unsigned)h[1][3], (unsigned)h[1][4],
+               (unsigned)h[2][0], (unsigned)h[2][1], (unsigned)h[2][2], (unsigned)h[2][3], (unsigned)h[2][4],
+               kind_labels[kind]);
+    } else if (*arg) {
+      strcpy(reply, "Err - use: get rx.errors [snr|rssi|len]");
+    } else {
+      // ok    = frames received correctly (the "received packets" counter of the statistics)
+      // crc   = frames flagged as CRC mismatch by the driver, split into
+      //         pay = payload CRC failed (header was fine; collision / weak or foreign signal),
+      //         hdr = LoRa header error (no valid header), unk = chip cannot tell
+      // other = other readData() errors, "last" = RadioLib code of the latest one (0 = none), e.g. -705 SPI timeout
+      uint32_t crc = radio_driver.getPacketsRecvErrCrc();
+      uint32_t other = radio_driver.getPacketsRecvErrOther();
+      uint32_t ok = radio_driver.getPacketsRecv();
+      uint32_t all = ok + crc + other;
+      sprintf(reply, "> ok %u, crc %u (pay %u, hdr %u, unk %u), other %u (last %d), err share %u%%",
+              (unsigned)ok, (unsigned)crc, (unsigned)radio_driver.getPacketsRecvErrPay(),
+              (unsigned)radio_driver.getPacketsRecvErrHdr(), (unsigned)radio_driver.getPacketsRecvErrUnk(),
+              (unsigned)other, (int)radio_driver.getLastRecvErrOther(),
+              (unsigned)(all ? (uint64_t)(crc + other) * 100 / all : 0));
+    }
   } else if (strcmp(command, "get cad") == 0) {
     // mups: the common reply is "> on|off; channel busy: <n>" = number of hardware CAD scans that
     // detected activity (several scans per waiting packet are possible). Append the per-packet view:

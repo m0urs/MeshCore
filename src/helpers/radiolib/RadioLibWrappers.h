@@ -21,8 +21,19 @@ protected:
   uint32_t n_recv, n_sent, n_recv_errors;
   // mups: n_recv_errors split by cause (n_recv_err_crc + n_recv_err_other == n_recv_errors)
   uint32_t n_recv_err_crc = 0;        // readData() returned RADIOLIB_ERR_CRC_MISMATCH
+  // mups: n_recv_err_crc split by what the chip flagged (pay + hdr + unk == n_recv_err_crc)
+  uint32_t n_recv_err_pay = 0;        //   payload CRC error (header was valid)
+  uint32_t n_recv_err_hdr = 0;        //   LoRa header error (no valid header)
+  uint32_t n_recv_err_unk = 0;        //   chip driver cannot tell / neither flag set
   uint32_t n_recv_err_other = 0;      // any other readData() error (SPI errors, ...)
   int16_t _last_recv_err_other = 0;   // RadioLib code of the latest "other" error, 0 = none yet
+  // mups: histograms of received frames: [0 = SNR, 1 = RSSI, 2 = declared packet length]
+  //       [0 = received correctly, 1 = payload CRC error, 2 = header error][5 buckets, see rxHistAdd()]
+  uint32_t _rx_hist[3][3][5] = {};
+  void rxHistAdd(uint8_t cls, int pkt_len);
+  // mups: tells why the chip flagged a CRC_MISMATCH frame, from the IRQ flags read BEFORE readData()
+  // (readData() clears them). Returns 1 = payload CRC error, 2 = header error, 0 = cannot tell.
+  uint8_t classifyCrcError(uint32_t irq);
   // PowerSaving variant
   uint32_t _cad_busy_count = 0;
   int16_t _noise_floor, _threshold;
@@ -149,14 +160,23 @@ public:
   // mups: see n_recv_err_crc / n_recv_err_other
   uint32_t getPacketsRecvErrCrc() const { return n_recv_err_crc; }
   uint32_t getPacketsRecvErrOther() const { return n_recv_err_other; }
+  uint32_t getPacketsRecvErrPay() const { return n_recv_err_pay; }
+  uint32_t getPacketsRecvErrHdr() const { return n_recv_err_hdr; }
+  uint32_t getPacketsRecvErrUnk() const { return n_recv_err_unk; }
   int16_t getLastRecvErrOther() const { return _last_recv_err_other; }
+  // mups: kind 0 = SNR, 1 = RSSI, 2 = length; cls 0 = ok, 1 = payload CRC error, 2 = header error; bucket 0..4
+  uint32_t getRxHist(uint8_t kind, uint8_t cls, uint8_t bucket) const {
+    return (kind < 3 && cls < 3 && bucket < 5) ? _rx_hist[kind][cls][bucket] : 0;
+  }
   uint32_t getPacketsSent() const { return n_sent; }
 
   // PowerSaving variant
   void resetStats() {
     n_recv = n_sent = n_recv_errors = n_rx_ps_arm_failures = 0;
     n_recv_err_crc = n_recv_err_other = 0;   // mups
+    n_recv_err_pay = n_recv_err_hdr = n_recv_err_unk = 0;   // mups
     _last_recv_err_other = 0;                // mups
+    for (int k = 0; k < 3; k++) for (int c = 0; c < 3; c++) for (int b = 0; b < 5; b++) _rx_hist[k][c][b] = 0;   // mups
     _cad_busy_count = 0;
     // Clearing diagnostics also grants a fresh set of arm attempts. If they
     // fail again, the normal three-failure continuous-RX fallback applies.
