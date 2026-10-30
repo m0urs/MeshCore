@@ -1300,6 +1300,18 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
         strcpy(reply, "Err - bad pubkey");
       }
     }
+  } else if (memcmp(command, "get rx.errors", 13) == 0 && (command[13] == 0 || command[13] == ' ')) {
+    // mups: receive errors by cause, since the last reboot / "clear stats".
+    // crc   = frames received completely but with a failed payload CRC (collisions, weak or foreign signals)
+    // other = other readData() errors, "last" = RadioLib code of the latest one (0 = none), e.g. -705 SPI timeout
+    // ok    = frames received correctly (the "received packets" counter of the statistics)
+    uint32_t crc = radio_driver.getPacketsRecvErrCrc();
+    uint32_t other = radio_driver.getPacketsRecvErrOther();
+    uint32_t ok = radio_driver.getPacketsRecv();
+    uint32_t all = ok + crc + other;
+    sprintf(reply, "> ok %u, crc %u, other %u (last %d), err share %u%%",
+            (unsigned)ok, (unsigned)crc, (unsigned)other, (int)radio_driver.getLastRecvErrOther(),
+            (unsigned)(all ? (uint64_t)(crc + other) * 100 / all : 0));
   } else if (sender_timestamp == 0 && strcmp(command, "get acl") == 0) {
     Serial.println("ACL:");
     for (int i = 0; i < acl.getNumClients(); i++) {

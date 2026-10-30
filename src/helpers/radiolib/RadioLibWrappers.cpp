@@ -401,6 +401,15 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
           MESH_DEBUG_PRINTLN("RadioLibWrapper: error: readData(%d)", err);
           len = 0;
           n_recv_errors++;
+          // mups: classify the error. RADIOLIB_ERR_CRC_MISMATCH (-7) = frame was received but
+          // its payload CRC failed (collision / weak signal / foreign signal); anything else
+          // (e.g. -705/-706/-707 SPI errors) points at the radio hardware or driver instead.
+          if (err == RADIOLIB_ERR_CRC_MISMATCH) {
+            n_recv_err_crc++;
+          } else {
+            n_recv_err_other++;
+            _last_recv_err_other = (int16_t)err;
+          }
         } else {
         //  Serial.print("  readData() -> "); Serial.println(len);
           n_recv++;

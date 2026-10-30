@@ -133,6 +133,7 @@ Full syntax and details: [`docs/cli_commands.md`](docs/cli_commands.md).
 | `powerlog` | Repeater, Room Server, Sensor | PowerSaving-v18 | Last reset reason; on nRF52 also last shutdown reason and boot voltage |
 | `sensor` | Repeater, Room Server, Sensor | PowerSaving-v18 | Shows the I2C and GPS pins of the board and whether GPS is configured |
 | `get cad` | all roles | PowerSaving-v18 | Shows `on`/`off` and the channel-busy counter |
+| `get rx.errors` | Repeater | own | Receive errors by cause, also usable remotely (the `stats-*` commands are serial only). Output: `> ok <n>, crc <n>, other <n> (last <code>), err share <pct>%` – `ok` = correctly received frames, `crc` = frames received completely whose payload CRC failed (collisions, weak or foreign signals), `other` = other read errors with the RadioLib code of the latest one (e.g. `-705` SPI timeout; `0` = none). Counted since boot / `clear stats`; `crc + other` equals the `recv_errors` total. |
 | `get outpath [path]` / `set outpath <hop1,hop2,…\|path\|direct\|clear\|flood>` | Repeater (remote admin only) | PR #2586 | Override the direct reply path to the logged-in client; `get/set outpath path` uses the path observed after the client's latest flood login |
 | `filter …` | Repeater | DMC packet filter | see `docs/packet_filter_reference.md` |
 | `get max.resend` / `set max.resend <0-3>` | all roles | PR #2670 | Max. resend attempts for direct packets, `0` = off, default `3`. On the repeater `get` also shows the resend ratio. |

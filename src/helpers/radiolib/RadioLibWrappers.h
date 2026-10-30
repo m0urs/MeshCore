@@ -19,6 +19,10 @@ protected:
   PhysicalLayer* _radio;
   mesh::MainBoard* _board;
   uint32_t n_recv, n_sent, n_recv_errors;
+  // mups: n_recv_errors split by cause (n_recv_err_crc + n_recv_err_other == n_recv_errors)
+  uint32_t n_recv_err_crc = 0;        // readData() returned RADIOLIB_ERR_CRC_MISMATCH
+  uint32_t n_recv_err_other = 0;      // any other readData() error (SPI errors, ...)
+  int16_t _last_recv_err_other = 0;   // RadioLib code of the latest "other" error, 0 = none yet
   // PowerSaving variant
   uint32_t _cad_busy_count = 0;
   int16_t _noise_floor, _threshold;
@@ -142,11 +146,17 @@ public:
 
   uint32_t getPacketsRecv() const { return n_recv; }
   uint32_t getPacketsRecvErrors() const { return n_recv_errors; }
+  // mups: see n_recv_err_crc / n_recv_err_other
+  uint32_t getPacketsRecvErrCrc() const { return n_recv_err_crc; }
+  uint32_t getPacketsRecvErrOther() const { return n_recv_err_other; }
+  int16_t getLastRecvErrOther() const { return _last_recv_err_other; }
   uint32_t getPacketsSent() const { return n_sent; }
 
   // PowerSaving variant
   void resetStats() {
     n_recv = n_sent = n_recv_errors = n_rx_ps_arm_failures = 0;
+    n_recv_err_crc = n_recv_err_other = 0;   // mups
+    _last_recv_err_other = 0;                // mups
     _cad_busy_count = 0;
     // Clearing diagnostics also grants a fresh set of arm attempts. If they
     // fail again, the normal three-failure continuous-RX fallback applies.
