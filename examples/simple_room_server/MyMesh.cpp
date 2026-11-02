@@ -1,3 +1,4 @@
+#include <helpers/CliTrim.h>
 #include "MyMesh.h"
 
 #define REPLY_DELAY_MILLIS          1500
@@ -961,6 +962,8 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     reply += 3;
     command += 3;
   }
+
+  mupsTrimCommandTail(command);   // mups: ignore trailing blanks (see helpers/CliTrim.h)
 
   // handle ACL related commands
   if (memcmp(command, "setperm ", 8) == 0) {   // format:  setperm {pubkey-hex} {permissions-int8}

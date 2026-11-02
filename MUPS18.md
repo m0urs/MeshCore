@@ -297,6 +297,11 @@ longer exist; credentials have to be set again with `set wifi.ssid` /
 Same as mups17 for PR #3536, PR #3260, PR #2834 and PR #1349 – see
 [MUPS17.md](https://github.com/m0urs/MeshCore/blob/mups17-release/MUPS17.md#changed-behaviour).
 
+**CLI: trailing blanks are ignored (Repeater, Room Server, Sensor).** Blanks, tabs and line ends at the end of a
+command are cut off before the command is evaluated, so `get txdelay ` works like `get txdelay` (before, many commands
+were rejected as unknown because they are matched against the whole text). Exception: `password …` and
+`set guest.password …` are left exactly as typed. Companions are not changed. The code is in `src/helpers/CliTrim.h`.
+
 ---
 
 ## Changed default settings
