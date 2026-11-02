@@ -15,6 +15,7 @@ the firmware reports them as `v1.18.0.mups<n>` (test builds: `v1.18.0.dev-<hash>
    - [Core features and optional features](#core-features-and-optional-features)
    - [Changes compared to mups17](#changes-compared-to-mups17)
 2. [Additional and changed CLI commands](#additional-and-changed-cli-commands-compared-to-meshcore-main)
+   - [Diagnosing receive errors and channel access (Repeater)](#diagnosing-receive-errors-and-channel-access-repeater)
 3. [Changed default settings](#changed-default-settings)
 4. [Release history](#release-history)
 
@@ -147,11 +148,122 @@ Full syntax and details: [`docs/cli_commands.md`](docs/cli_commands.md).
 | `powerlog` | Repeater, Room Server, Sensor | PowerSaving-v18 | Last reset reason; on nRF52 also last shutdown reason and boot voltage |
 | `sensor` | Repeater, Room Server, Sensor | PowerSaving-v18 | Shows the I2C and GPS pins of the board and whether GPS is configured |
 | `get cad` | all roles | PowerSaving-v18 | Shows `on`/`off` and the channel-busy counter (`channel busy` = CAD scans that detected activity, so one waiting packet can add several). **Repeater, mups:** the reply also shows `blocked <n>` (send attempts that found the channel busy and had to wait = busy episodes) and `forced <n>` (transmissions started anyway after the 4 s busy limit). Example: `> on; channel busy: 812, blocked 57, forced 2`. Counted since boot / `clear stats`. |
-| `get rx.errors` | Repeater | own | Receive errors by cause, also usable remotely (the `stats-*` commands are serial only). Output: `> ok <n>, crc <n> (pay <n>, hdr <n>, unk <n>), other <n> (last <code>), err share <pct>%` – `ok` = correctly received frames, `crc` = frames that RadioLib reported as CRC mismatch, split by the chip's IRQ flags into `pay` (payload CRC failed, the header was fine: collisions, weak or foreign signals), `hdr` (LoRa header error, no valid header) and `unk` (cannot tell); `other` = other read errors with the RadioLib code of the latest one (e.g. `-705` SPI timeout; `0` = none). Counted since boot / `clear stats`; `crc + other` equals the `recv_errors` total. `get rx.errors snr`, `rssi` or `len` show histograms (5 buckets each, bucket limits are printed with the reply) of correctly received frames (`ok`) against `pay` and `hdr` frames by SNR, RSSI and declared packet length, to tell weak signals (SNR near the SF8 limit of about -10 dB) from collisions (strong RSSI) and foreign signals (odd lengths). SNR, RSSI and length of an error frame are the chip's packet-status values for the frame; that they are valid for error frames is assumed, not verified on a device (for `hdr` frames the length is probably not meaningful). Whether the chip reports header errors to this code at all (RX_DONE) is not verified; `hdr` stays 0 if it does not. `get rx.errors last` lists the latest CRC-error frames (up to 6 are kept, as many as fit into the reply are shown), newest first: `<age>s/<rssi>/<snr>/<length>/<first 4 bytes in hex>`, with prefix `h` for a header error and `u` if the chip cannot tell; the bytes are the (possibly corrupted) start of the frame and show whether the sender looks like MeshCore (first byte = route type, payload type and version). |
+| `get rx.errors` / `get rx.errors snr\|rssi\|len\|last` | Repeater | own | Receive errors by cause (`ok`, `crc` split into `pay`/`hdr`/`unk`, `other`, `err share`), histograms by SNR, RSSI and frame length, and the latest damaged frames; usable remotely. Example: `> ok 2745, crc 377 (pay 372, hdr 5, unk 0), other 0 (last 0), err share 12%`. Counted since boot / `clear stats`. Explanation of every option and how to read the results: [Diagnosing receive errors](#diagnosing-receive-errors-and-channel-access-repeater). |
 | `get outpath [path]` / `set outpath <hop1,hop2,…\|path\|direct\|clear\|flood>` | Repeater (remote admin only) | PR #2586 | Override the direct reply path to the logged-in client; `get/set outpath path` uses the path observed after the client's latest flood login |
 | `filter …` | Repeater | DMC packet filter | see `docs/packet_filter_reference.md` |
 | `get max.resend` / `set max.resend <0-3>` | all roles | PR #2670 | Max. resend attempts for direct packets, `0` = off, default `3`. On the repeater `get` also shows the resend ratio. |
 | `set fwd.scoped.reserve <0-100>` / `get fwd.scoped.reserve` / `get fwd.scoped.stats` | Repeater | own (idea: ACETyr) | Airtime reserve for scoped floods |
+
+### Diagnosing receive errors and channel access (Repeater)
+
+These commands exist only in the repeater firmware and also work remotely
+(from the app's command line); the `stats-*` commands are serial only. They
+help to find out **why** a repeater shows many "Received Packet Errors" in the
+app. They do not change any radio behaviour.
+
+#### What is counted
+
+Every time the radio chip reports "a frame was received" the driver reads it.
+Frames that arrive correctly are counted as `ok` (this is the "received
+packets" figure of the statistics, duplicates included). Frames for which the
+read failed are errors:
+
+| Counter | Meaning |
+|---|---|
+| `ok` | Frames received correctly |
+| `crc` | Frames the driver reported as CRC mismatch. Split into `pay`, `hdr`, `unk` (see below) |
+| `pay` | **Payload CRC error**: the LoRa header was valid, the data part was damaged. Typical for weak signals, collisions with other transmitters and interference during the frame |
+| `hdr` | **Header error**: the chip could not decode a valid LoRa header. Rare (a few per thousand) because the chip usually does not report such frames at all |
+| `unk` | The chip could not say whether it was payload or header (chips without interrupt flags). Stays `0` on SX126x |
+| `other` | Other read errors (for example `-705` = SPI timeout); `(last <code>)` shows the RadioLib code of the latest one, `0` = none. A value above 0 points to a hardware or wiring problem and not to radio interference |
+| `err share` | `(crc + other) * 100 / (ok + crc + other)`, rounded **down** to whole percent (11.9 % is shown as 11 %) |
+
+All counters start at 0 at boot and are reset by `clear stats`. Not reset by
+`clear stats`: the airtime counters (TX/RX) on the statistics page; they run
+since boot. Frames of length 0 and frames the chip never reported (for example
+a preamble without a valid header) are not counted anywhere.
+
+#### Command reference
+
+| Command | Output | How to use it |
+|---|---|---|
+| `get rx.errors` | `> ok 2745, crc 377 (pay 372, hdr 5, unk 0), other 0 (last 0), err share 12%` | Overall picture. One look tells whether errors are a rare effect or the majority |
+| `get rx.errors snr` | `> snr ok 528,739,724,480,275 pay 163,78,90,41,0 hdr 3,1,0,0,1 [<=-10,<=-5,<=0,<=5,>5 dB]` | Frames sorted by signal-to-noise ratio of the frame. Five buckets; the limits are printed at the end of the reply |
+| `get rx.errors rssi` | `> rssi ok … pay … hdr … [<=-120,<=-110,<=-100,<=-90,>-90 dBm]` | Same, sorted by signal strength (packet RSSI, averaged over the frame) |
+| `get rx.errors len` | `> len ok … pay … hdr … [<=30,<=60,<=100,<=160,>160 B]` | Same, sorted by the frame length in bytes (including header and path) |
+| `get rx.errors last` | `> last 61s/-121/-7.5/49/011B567A 81s/-108/5.0/121/11073223 …` | The latest damaged frames, newest first (up to 6 are kept, as many as fit into the 150-character reply are shown). Each entry: `<age in s>/<RSSI dBm>/<SNR dB>/<length B>/<first 4 bytes in hex>`. Prefix `h` = header error, `u` = unknown, no prefix = payload error. `> last: none since boot / clear stats` if there is nothing yet |
+| `get cad` | `> on; channel busy: 137, blocked 134, forced 1` | Channel access, see the end of this section |
+| `clear stats` | `(OK - stats reset)` | Starts a new measurement: resets all counters above and the channel counters. Note the time |
+
+Each histogram line has three groups of five numbers (buckets 1 to 5, in the
+order of the limits printed at the end): `ok` = good frames, `pay` = payload
+errors, `hdr` = header errors.
+
+#### How to read the histograms
+
+For every bucket calculate the **error rate = pay / (ok + pay)**. A single bucket with
+few frames means little; look at buckets with several hundred frames.
+
+| What you see | What it usually means |
+|---|---|
+| High error rate only in the weakest SNR bucket (`<= -10 dB`, around the SF8 demodulation limit of about -10 dB), falling steadily to almost 0 at `> 5 dB` | Normal weak-signal errors on a clean channel |
+| High error rate (clearly above 40 %) even in good buckets (SNR `> -5 dB`, RSSI `> -110 dBm`) | The frame was strong enough but still damaged: interference or collisions, not just weak signals |
+| Error rate rises strongly with the frame length (for example 10 % at `<= 60 B` but 90 % or more at `> 160 B`) | The damage happens somewhere **during** the frame (longer frames have more chances to be hit): bursts of interference or colliding transmitters |
+| One RSSI bucket with many errors and almost no good frames | A foreign signal at that level; compare the same bucket at another place or time |
+| `hdr` consistently 0 | Normal: the chip rarely reports header errors |
+
+These are hints and not proofs: the same pattern can have more than one cause.
+SNR and RSSI of a damaged frame are the values the chip stored for that frame;
+on an SX1262 they behave plausibly (on a clean channel the error rate falls
+with the SNR), but this was not verified against a reference measurement.
+
+#### How to read `get rx.errors last`
+
+The 4 bytes are the (possibly damaged) **start of the frame** and show what the
+sender looks like.
+
+- **Byte 1 = header.** Bits 0-1 = route: `0` transport flood, `1` flood, `2` direct,
+  `3` transport direct. Bits 2-5 = payload type: `0` REQ, `1` RESPONSE, `2` TXT_MSG,
+  `3` ACK, `4` ADVERT, `5` GRP_TXT, `6` GRP_DATA, `7` ANON_REQ, `8` PATH, `9` TRACE,
+  `A` MULTIPART, `B` CONTROL, `F` RAW_CUSTOM. Bits 6-7 = version: only `0` is valid.
+  Examples: `01` = flood REQ, `11` = flood ADVERT, `21` = flood PATH, `14` = transport-flood GRP_TXT.
+  A first byte such as `41`, `54` or `C5` (version bits not 0) shows that the start of this frame itself is damaged.
+- **Transport routes** (`0` and `3`) have 4 transport-code bytes after byte 1; the path byte follows after them.
+- **Path byte** (byte 2 for plain flood/direct routes): bits 6-7 = hash size minus 1, bits 0-5 = number of hops. `86` = 3-byte hashes, 6 hops (18 path bytes); `4A` = 2-byte hashes, 10 hops.
+  Expected frame length = 1 (+ 4 for transport routes) + 1 + hops x hash size + payload.
+- **Path bytes** (after the path byte) start with the hash of the first relay. The same start in several entries means the same packet was heard several times, usually from different relays.
+- **Reading the values:** an entry with a valid first byte and weak signal (RSSI around -120 dBm, SNR at or below -10 dB) is an ordinary weak-signal error. An entry that is strong (SNR above 0 dB) and still damaged hints at interference or a collision.
+
+#### Channel access (`get cad`)
+
+| Field | Meaning |
+|---|---|
+| `on` / `off` | Hardware CAD (channel activity detection) before sending |
+| `channel busy` | CAD scans that detected activity (one waiting packet can add several) |
+| `blocked` | Send attempts that found the channel busy (a packet in reception, a CAD hit or the RSSI gate) and had to wait = busy episodes |
+| `forced` | Transmissions started anyway after the 4 s busy limit. A few per day were seen on a repeater with a clean channel; many forced sends mean the channel was often busy for 4 s or longer |
+
+Counted since boot or `clear stats`.
+
+#### Recommended measurement
+
+1. `clear stats`; note the time on **one** clock (for example your phone). The repeater clock (`clock`) shows UTC.
+2. Wait until at least 1000 good frames have arrived (about one to two hours on a busy repeater).
+3. Run `get rx.errors`, `get rx.errors snr`, `get rx.errors rssi`, `get rx.errors len`, `get rx.errors last`, `get cad`, and note the time again.
+4. Per hour = counter / hours. Compare periods only with the same settings (power saving, rxgain, CAD, antenna and place unchanged); repeat at another time of day, because errors follow the traffic.
+
+#### Example (one RAK4631 repeater, EU 62.5 kHz SF8)
+
+| | disturbed period | clean period |
+|---|---|---|
+| `err share` | 58 % (ok 3087, crc 4367) | 11 % (ok 11959, crc 1588) |
+| error rate by length, `<= 30 B` … `> 160 B` | 30 %, 47 %, 73 %, 96 %, 98 % | 9 %, 10 %, 12 %, 16 %, 20 % |
+| error rate by SNR, `<= -10 dB` … `> 5 dB` | 81 %, 56 %, 53 %, 48 %, 32 % | 25 %, 10 %, 13 %, 7 %, 2 % |
+| good / damaged frames per hour | about 330 / 470 | about 800 / 110 |
+
+In the disturbed period frames with good SNR were still damaged and long frames
+almost never survived; in the clean period the errors are concentrated in the
+weakest SNR bucket. The cause of the disturbed period was not identified.
 
 ### Companion: official v1.18.0 commands used instead of own ones
 
