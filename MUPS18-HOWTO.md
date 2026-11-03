@@ -24,6 +24,7 @@ als **„(aus dem Code, nicht am Gerät getestet)“** dabei.
 12. [Geräte konfigurieren (CLI, Rescue-CLI, WLAN, Filter)](#12-geräte-konfigurieren)
 13. [Repo aufräumen](#13-repo-aufräumen)
 14. [Fehlerbehebung](#14-fehlerbehebung)
+15. [Lokaler Web-Flasher](#15-lokaler-web-flasher)
 
 ---
 
@@ -75,8 +76,9 @@ Anzeigen: `git remote -v` und `git config --get-regexp 'remote\..*\.fetch'`
 | Neubau von `mups18` | `~/meshcore/build-mups18.sh` (Sicherung: `build-mups18.sh.bak`) |
 | Firmware kompilieren | `~/meshcore/mc-build.sh` |
 | Python-venv (PlatformIO) | `~/meshcore/bin/activate` (lädt `mc-build.sh` selbst) |
-| Fertige Firmware (lokal) | `~/meshcore/Firmware-MU/<Modell>/` |
+| Fertige Firmware (lokal) | `~/meshcore/Firmware-MU/<Modell>/` (mups-Builds **und** Originale; im obersten Verzeichnis die nRF52-Hilfsdateien des lokalen Flashers) |
 | Fertige Firmware (Windows/iCloud) | `/mnt/c/Users/micha/iCloudDrive/Meshcore/Firmware-MU/<Modell>/` |
+| Lokaler Web-Flasher | `~/meshcore-local-flasher` (erzeugt von `~/setup-local-flasher.sh`, Quelle: GitHub `m0urs/meshcore-local-flasher`), siehe [Abschnitt 15](#15-lokaler-web-flasher) |
 | Downloads (Patches von Claude) | `/mnt/c/Users/micha/Downloads` |
 | Lokale WLAN-Overrides (nicht im Git) | `~/meshcore/MeshCore/platformio.local.ini` |
 
@@ -637,3 +639,23 @@ git tag -d <fremder-tag>                              # z. B. versehentlich geho
 | Heruntergeladene `.sh` lässt sich nicht öffnen | als `.txt` herunterladen, mit `mv … .sh` umbenennen, `chmod +x` |
 | Neue Defaults wirken nicht | Gerät hat gespeicherte Einstellungen → per CLI setzen oder Einstellungen löschen |
 | Git meldet Fehler im commit-graph | `git -c core.commitGraph=false <befehl>` (beschädigter Eintrag in einer Kopie des Repos) |
+
+---
+
+## 15. Lokaler Web-Flasher
+
+Der Web-Flasher (flasher.meshcore.io) und das Repeater-Setup laufen lokal unter `http://localhost:8080` und bieten die
+mups-Builds, die Originale und sonstige Firmware aus `~/meshcore/Firmware-MU` an. Das Script `~/setup-local-flasher.sh`
+(Quelle: GitHub `m0urs/meshcore-local-flasher`) richtet das ein.
+
+Nach jedem Build oder nach neuen Originalen (immer aus `~` starten):
+
+```bash
+cd ~
+bash ~/setup-local-flasher.sh --refresh --fw-dir ~/meshcore/Firmware-MU
+```
+
+Danach die Seite im Browser neu laden. Im Dropdown erscheinen mups-Releases als `MUPS v1.18.0.mupsN`, Testbuilds als
+`MUPS-dev v1.18.0.dev-<hash>`, offizielle Firmware als `Original v1.18.0-<hash>`. Die Ordnerstruktur in `Firmware-MU`
+ist egal, nur die Dateinamen zählen; die nRF52-Hilfsdateien (Erase, Bootloader) müssen im obersten Verzeichnis liegen.
+Start ohne Script, Umzug auf eine andere Maschine und alle Details: `local-flasher-howto.md` (Projekt-Doku).
