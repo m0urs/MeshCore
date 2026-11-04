@@ -249,9 +249,9 @@ grep -rn "define LORA_\(FREQ\|BW\|SF\|CR\) " examples/
 | CLI | Im Code | Umrechnung |
 |---|---|---|
 | `set dutycycle 10` | `airtime_factor = 9.0` | `af = 100 / dc − 1` |
-| `set advert.interval 240` (Minuten) | `advert_interval = 120` | Code = Minuten / 2 |
+| `set advert.interval 238` (Minuten) | `advert_interval = 119` | Code = Minuten / 2 |
 | `set flood.advert.interval 167` (Stunden) | `flood_advert_interval = 167` | 1:1 |
-| `set agc.reset.interval 12` (Sekunden) | `agc_reset_interval = 3` | Code = Sekunden / 4 |
+| `set agc.reset.interval 0` (Sekunden, 0 = aus) | `agc_reset_interval = 0` | Code = Sekunden / 4 |
 | `set loop.detect moderate` | `LOOP_DETECT_MODERATE` | off / minimal / moderate / strict |
 
 ### Ablauf
@@ -508,7 +508,7 @@ set dutycycle 10
 set rxdelay 2
 set txdelay 1.0
 set direct.txdelay 0.4
-set advert.interval 240
+set advert.interval 238
 set flood.advert.interval 167
 set flood.max 15
 set flood.max.unscoped 3
@@ -516,7 +516,7 @@ set flood.max.advert 3
 set multi.acks 1
 set path.hash.mode 2
 set loop.detect moderate
-set agc.reset.interval 12
+set agc.reset.interval 0
 set max.resend 3
 set cad on
 ```

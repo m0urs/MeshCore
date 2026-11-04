@@ -345,7 +345,7 @@ Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`
 | `rxdelay` | 0 | **2** |
 | `txdelay` | 0.5 | **1.0** |
 | `direct.txdelay` | 0.3 | **0.4** |
-| `advert.interval` | 2 min | **240 min** |
+| `advert.interval` | 2 min | **238 min** |
 | `flood.advert.interval` | 47 h | **167 h** |
 | `flood.max` | 64 | **15** |
 | `flood.max.unscoped` | 64 | **3** |
@@ -353,7 +353,6 @@ Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`
 | `multi.acks` | 0 | **1** |
 | `path.hash.mode` | 0 | **2** |
 | `loop.detect` | minimal | **moderate** |
-| `agc.reset.interval` | 0 (off) | **12 s** |
 | `cad` | off | **on** |
 
 ---
