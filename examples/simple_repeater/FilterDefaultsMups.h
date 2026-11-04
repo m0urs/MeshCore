@@ -12,7 +12,7 @@
 
 #define MUPS_FILTER_ADVERT_HOURS   24   // per-origin advert window (h), 0 = off
 #define MUPS_FILTER_AGE_MINS       30   // drop readable group texts older than this (min), 0 = off
-#define MUPS_FILTER_REQ_HOPS        6   // hop limit for REQ, RESPONSE, ANON_REQ (login)
+#define MUPS_FILTER_REQ_HOPS        5   // hop limit for REQ (00), RESPONSE (01), ANON_REQ (07); was 6 in mups18-1
 #define MUPS_FILTER_HOPS_OFF       64   // "no hop limit" (flood.max applies)
 
 inline void mupsFilterDefaults(FilterPrefs& p) {
