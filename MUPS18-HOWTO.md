@@ -37,7 +37,7 @@ als **„(aus dem Code, nicht am Gerät getestet)“** dabei.
 | `mups18` | **Fertige Firmware.** Wird von `build-mups18.sh` bei jedem Lauf **neu gebaut** und per Force-Push überschrieben. | nur das Skript – **nie direkt committen** |
 | `mu/mups18-own` | Eigene Änderungen: Voreinstellungen (inkl. Companion-CAD), `MUPS18.md`, dieses Handbuch. **Anders als bei mups17:** keine eigene Rescue-CLI und kein eigenes WLAN mehr – das kommt jetzt aus v1.18.0 | du |
 | `mu/pr-2670-ps18` | Port von PR #2670 (Repeated Sending) auf PowerSaving-v18 / v1.18.0 | du (bei PR-Updates) |
-| `mu/dmc-filter-ps18` | Port des Dutch-MeshCore-Paketfilters (Stand `ecfb2d41`) samt eigenen Änderungen | du (bei Filter-Updates) |
+| `mu/dmc-filter-ps18` | Port des Dutch-MeshCore-Paketfilters (Stand `7df3767c`, mups18-1: `ecfb2d41`) samt eigenen Änderungen | du (bei Filter-Updates) |
 | `mu/scoped-reserve-ps18` | Eigene Sendezeit-Reserve für Scoped Floods (`fwd.scoped.reserve`) | du |
 | `mups17`, `mu/*-ps17` | alte Linie (letztes Release `mups17-3`, v1.17.1) – nicht mehr pflegen | – |
 | `ufo6`, `ufo7`, `ufo8` | alte Firmware-Stände | – |

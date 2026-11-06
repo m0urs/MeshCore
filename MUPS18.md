@@ -33,7 +33,7 @@ the firmware reports them as `v1.18.0.mups<n>` (test builds: `v1.18.0.dev-<hash>
 | PR #3536 | [Beeps for silence and unsilence](https://github.com/meshcore-dev/MeshCore/pull/3536) | squashed cherry-pick | companion UI only; T1000-E button debounce 20 ms |
 | PR #2586 | [Repeater: set reply path (`outpath`)](https://github.com/meshcore-dev/MeshCore/pull/2586) | squashed cherry-pick | replaces the `outpath` command that PowerSaving-v17 had (removed in PowerSaving-v18); conflict in `simple_repeater/MyMesh.cpp` (ACK path with PR #3260) resolved once, then automatic (rerere) |
 | PR #2670 | [Repeated sending of direct packets](https://github.com/meshcore-dev/MeshCore/pull/2670) | port branch `mu/pr-2670-ps18` | **partial port**, see below |
-| DMC packet filter | [Dutch-MeshCore `dmc-dev`](https://github.com/Dutch-MeshCore/MeshCore/tree/dmc-dev) (`ecfb2d41`) | port branch `mu/dmc-filter-ps18` | **repeater only, off by default and in dry-run mode** (after `filter on` it only counts until `filter dryrun off`), own fixes and defaults as in mups17; filter files updated to the Dutch state `ecfb2d41` |
+| DMC packet filter | [Dutch-MeshCore `dmc-dev`](https://github.com/Dutch-MeshCore/MeshCore/tree/dmc-dev) (`7df3767c`) | port branch `mu/dmc-filter-ps18` | **repeater only, off by default and in dry-run mode** (after `filter on` it only counts until `filter dryrun off`), own fixes and defaults as in mups17; filter files updated to the Dutch state `ecfb2d41` |
 | Airtime reserve for scoped floods | idea and design from [ACETyr/MeshCore](https://github.com/ACETyr/MeshCore) | port branch `mu/scoped-reserve-ps18` | same as mups17: **repeater only, off by default** |
 | Own changes | branch `mu/mups18-own` | merge | default settings (radio preset, 10 % duty cycle, repeater values), this document |
 
@@ -71,7 +71,7 @@ Differences to the mups17 port:
 
 ### DMC packet filter
 
-Updated to the Dutch-MeshCore state `ecfb2d41` (mups17: `34d1c16f`): the Dutch
+Updated to the Dutch-MeshCore state `7df3767c` (mups18-1: `ecfb2d41`, mups17: `34d1c16f`): the Dutch
 refactoring (shared `MessageContent.h`, rule and path list editing) and their
 fix that builds the rate limiters from the active prefs are included. Same own
 changes as in mups17: channel block by key, limiters in sync (now via the Dutch
@@ -306,6 +306,8 @@ command are cut off before the command is evaluated, so `get txdelay ` works lik
 were rejected as unknown because they are matched against the whole text). Exception: `password …` and
 `set guest.password …` are left exactly as typed. Companions are not changed. The code is in `src/helpers/CliTrim.h`.
 
+**Packet filter: `filter age` also applies to the future (Repeater, since mups18-2).** Taken over from Dutch-MeshCore (`47d3d2de`). Up to mups18-1 the age limit only dropped group texts stamped *before* the limit; a stamp in the future was never counted as old. Now a group text whose timestamp is more than the limit away from the repeater's clock is dropped in **either** direction. Example with `filter age 30` (the mups default): a message from a phone whose clock runs 40 minutes ahead is now dropped (and counted under `filter stats age`), before it was forwarded. Reason given by the Dutch project: a stamp set days into the future would otherwise never age out. Only relevant once the filter is on and `filter dryrun` is off; with the defaults (filter off, dry-run on) nothing is dropped. Code: `MessageAge::outsideLimit()` (was `tooOld()`), `docs/packet_filter_reference.md` describes it.
+
 ---
 
 ## Changed default settings
@@ -366,4 +368,4 @@ Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`
 | Tag | Date | Base / changes |
 |---|---|---|
 | `mups18-1` | 2026-10-28 | PowerSaving-v18 (MeshCore v1.18.0) + PR #1349, #2834, #3260, #3536, #2586 + PR #2670 (partial) + DMC packet filter + airtime reserve + own defaults |
-| `mups18-2` | 2026-11-06 | Same base and PRs as `mups18-1`, with PowerSaving-v18 as of 2026-11-04. New in the repeater: `get rx.errors` (`snr`, `rssi`, `len`, `last`), `get cad` with blocked and forced counters, fix of the busy-wait timer in the channel check (PR #2670 interplay), trailing blanks in CLI commands are ignored (Repeater, Room Server, Sensor). Changed defaults (new install only): `advert.interval` 238 min (was 240), `agc.reset.interval` 0 = off (official default; was 12 s), filter hop limit for REQ, RESPONSE and ANON_REQ 5 (was 6). Docs: `MUPS18-HOWTO.md`, notes on diagnosing receive errors. |
+| `mups18-2` | 2026-11-06 | Same base and PRs as `mups18-1`, with PowerSaving-v18 as of 2026-11-04. New in the repeater: `get rx.errors` (`snr`, `rssi`, `len`, `last`), `get cad` with blocked and forced counters, fix of the busy-wait timer in the channel check (PR #2670 interplay), trailing blanks in CLI commands are ignored (Repeater, Room Server, Sensor). Changed defaults (new install only): `advert.interval` 238 min (was 240), `agc.reset.interval` 0 = off (official default; was 12 s), filter hop limit for REQ, RESPONSE and ANON_REQ 5 (was 6). Packet filter: `filter age` now also drops messages stamped in the future (Dutch-MeshCore `47d3d2de`, see Changed behaviour). Docs: `MUPS18-HOWTO.md`, notes on diagnosing receive errors. |
