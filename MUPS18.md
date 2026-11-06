@@ -5,7 +5,7 @@ Branch `mups18` is **generated** by `build-mups18.sh` and force-pushed on every
 rebuild – never commit to it directly. Releases are git tags `mups18-<n>`;
 the firmware reports them as `v1.18.0.mups<n>` (test builds: `v1.18.0.dev-<hash>`).
 
-> **Status:** first release is `mups18-1` (see [Release history](#release-history)).
+> **Status:** latest release is `mups18-2` (first release: `mups18-1`; see [Release history](#release-history)).
 > When updating from mups17, note that WiFi credentials have to be set again
 > (`set wifi.ssid` / `set wifi.pwd`, see below).
 
@@ -84,6 +84,10 @@ After `filter on` the repeater therefore only *counts* what it would drop (`filt
 this with `(dry-run)`) and still forwards everything. Look at the statistics first, then switch
 to real filtering with `filter dryrun off`. `filter reset` restores these defaults, including
 dry-run on. A repeater that already has a stored `/filter_prefs` keeps its current settings.
+
+**Hop limit defaults (new install / `filter reset`):** REQ (00), RESPONSE (01) and ANON_REQ (07) are limited to
+**5** hops (6 in mups18-1); all other packet types have no filter hop limit (`flood.max` applies). The filter
+stays off and in dry-run until you switch it on.
 
 Not taken over from `dmc-dev`: `dc.gate` / true TX duty window, the region fix for
 transport code 0, the companion receive filter, companion SNMP / OTA – they are
@@ -362,3 +366,4 @@ Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`
 | Tag | Date | Base / changes |
 |---|---|---|
 | `mups18-1` | 2026-10-28 | PowerSaving-v18 (MeshCore v1.18.0) + PR #1349, #2834, #3260, #3536, #2586 + PR #2670 (partial) + DMC packet filter + airtime reserve + own defaults |
+| `mups18-2` | 2026-11-06 | Same base and PRs as `mups18-1`, with PowerSaving-v18 as of 2026-11-04. New in the repeater: `get rx.errors` (`snr`, `rssi`, `len`, `last`), `get cad` with blocked and forced counters, fix of the busy-wait timer in the channel check (PR #2670 interplay), trailing blanks in CLI commands are ignored (Repeater, Room Server, Sensor). Changed defaults (new install only): `advert.interval` 238 min (was 240), `agc.reset.interval` 0 = off (official default; was 12 s), filter hop limit for REQ, RESPONSE and ANON_REQ 5 (was 6). Docs: `MUPS18-HOWTO.md`, notes on diagnosing receive errors. |
