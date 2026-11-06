@@ -103,6 +103,10 @@ public:
   void onSendFinished() override;
   bool isInRecvMode() const override;
   bool isChannelActive();
+  // mups: true while RX power saving has the chip in its sleep phase. SPI probes there could wake
+  // the chip and break the duty cycle (see isReceivingPacket() / isChannelActive()), so callers
+  // outside this class skip RSSI reads in that state, like isChannelActive() does.
+  bool isRxPowerSavingSleeping() { return _rx_ps_armed && isChipBusy(); }
 
   // PowerSaving variant
   virtual bool supportsRxPowerSaving() const { return false; }
