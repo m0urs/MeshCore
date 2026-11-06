@@ -940,7 +940,8 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   send_unscoped = false;
 
   // defaults
-  _prefs.airtime_factor = 1.0;
+  _prefs.airtime_factor = 9.0;   // mups: 10% duty cycle (EU regulation)
+  _prefs.cad_enabled = 1;        // mups: hardware CAD before TX on by default (as on the repeater)
   _prefs.tx_delay_factor = 0.5f;
   _prefs.direct_tx_delay_factor = 0.2f;
   strcpy(_prefs.node_name, "NONAME");

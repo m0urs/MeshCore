@@ -1,3 +1,4 @@
+#include <helpers/CliTrim.h>
 #include "SensorMesh.h"
 #include <helpers/RoutingPolicy.h>
 #include <helpers/sensors/LPPDataHelpers.h>
@@ -5,16 +6,16 @@
 /* ------------------------------ Config -------------------------------- */
 
 #ifndef LORA_FREQ
-  #define LORA_FREQ   915.0
+  #define LORA_FREQ   869.618
 #endif
 #ifndef LORA_BW
-  #define LORA_BW     250
+  #define LORA_BW     62.5
 #endif
 #ifndef LORA_SF
-  #define LORA_SF     10
+  #define LORA_SF     8
 #endif
 #ifndef LORA_CR
-  #define LORA_CR      5
+  #define LORA_CR      8
 #endif
 #ifndef LORA_TX_POWER
   #define LORA_TX_POWER  20
@@ -468,6 +469,8 @@ void SensorMesh::handleCommand(ClientInfo* from, uint32_t sender_timestamp, char
     command += 3;
   }
 
+  mupsTrimCommandTail(command);   // mups: ignore trailing blanks (see helpers/CliTrim.h)
+
   // first, see if this is a custom-handled CLI command (ie. in main.cpp)
   if (handleCustomCommand(sender_timestamp, command, reply)) {
     return;   // command has been handled
@@ -808,7 +811,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   region_load_active = false;
 
   // defaults
-  _prefs.airtime_factor = 1.0;
+  _prefs.airtime_factor = 9.0;   // mups: 10% duty cycle (EU regulation)
   _prefs.rx_delay_base =   0.0f;  // turn off by default, was 10.0;
   _prefs.tx_delay_factor = 0.5f;   // was 0.25f
   _prefs.direct_tx_delay_factor = 0.2f; // was zero

@@ -1,3 +1,4 @@
+#include <helpers/CliTrim.h>
 #include "MyMesh.h"
 
 #define REPLY_DELAY_MILLIS          1500
@@ -668,7 +669,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   recv_pkt_region = NULL;
 
   // defaults
-  _prefs.airtime_factor = 1.0;
+  _prefs.airtime_factor = 9.0;   // mups: 10% duty cycle (EU regulation)
   _prefs.rx_delay_base = 0.0f;   // off by default, was 10.0
   _prefs.tx_delay_factor = 0.5f; // was 0.25f;
   _prefs.direct_tx_delay_factor = 0.2f; // was zero
@@ -986,6 +987,8 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     reply += 3;
     command += 3;
   }
+
+  mupsTrimCommandTail(command);   // mups: ignore trailing blanks (see helpers/CliTrim.h)
 
   // handle ACL related commands
   if (memcmp(command, "setperm ", 8) == 0) {   // format:  setperm {pubkey-hex} {permissions-int8}

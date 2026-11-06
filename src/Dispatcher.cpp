@@ -286,7 +286,15 @@ void Dispatcher::processRecvPacket(Packet* pkt) {
 }
 
 void Dispatcher::checkSend() {
-  if (_mgr->getOutboundCount(_ms->getMillis()) == 0) return;
+  if (_mgr->getOutboundCount(_ms->getMillis()) == 0) {
+    // mups: nothing is due, so no packet is waiting for a free channel any more. A busy episode may
+    // still be open here: PR #2670 removes a queued resend from the queue when the downstream
+    // forward is overheard (Mesh.cpp), possibly while that very resend was waiting for the channel.
+    // Without this reset cad_busy_start stays at the old timestamp, and the next packet that finds
+    // the channel busy is sent at once because the 4 s limit looks long exceeded.
+    cad_busy_start = 0;
+    return;
+  }
   
   updateTxBudget();
   
@@ -311,10 +319,12 @@ void Dispatcher::checkSend() {
   if (channel_busy) {
     if (cad_busy_start == 0) {
       cad_busy_start = _ms->getMillis();   // record when CAD busy state started
+      n_cad_blocked++;                     // mups: start of a new busy episode
     }
 
     if (_ms->getMillis() - cad_busy_start > getCADFailMaxDuration()) {
       _err_flags |= ERR_EVENT_CAD_TIMEOUT;
+      n_cad_forced++;                      // mups: busy for too long, transmitting anyway
 
       MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): CAD busy max duration reached!", getLogDateTime());
       // channel activity has gone on too long... (Radio might be in a bad state)

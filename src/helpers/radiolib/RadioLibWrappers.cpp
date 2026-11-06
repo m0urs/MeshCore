@@ -383,6 +383,66 @@ bool RadioLibWrapper::isInRecvMode() const {
   return (state & ~STATE_INT_READY) == STATE_RX;
 }
 
+// mups: count a frame in the SNR / RSSI / length histograms (cls 0 = received correctly,
+// 1 = payload CRC error, 2 = header error). Uses _last_snr / _last_rssi, which recvRaw() has just read from the chip's
+// packet status. 5 buckets each (upper bounds inclusive, last bucket open):
+//   SNR  dB:  <=-10  <=-5  <=0  <=5  >5      (SF8 needs about -10 dB to demodulate)
+//   RSSI dBm: <=-120 <=-110 <=-100 <=-90 >-90
+//   length B: <=30   <=60  <=100 <=160 >160   (declared payload length from the header)
+void RadioLibWrapper::rxHistAdd(uint8_t cls, int pkt_len) {
+  float s = _last_snr, r = _last_rssi;
+  _rx_hist[0][cls][s <= -10 ? 0 : s <= -5 ? 1 : s <= 0 ? 2 : s <= 5 ? 3 : 4]++;
+  _rx_hist[1][cls][r <= -120 ? 0 : r <= -110 ? 1 : r <= -100 ? 2 : r <= -90 ? 3 : 4]++;
+  _rx_hist[2][cls][pkt_len <= 30 ? 0 : pkt_len <= 60 ? 1 : pkt_len <= 100 ? 2 : pkt_len <= 160 ? 3 : 4]++;
+}
+
+// mups: why was a RADIOLIB_ERR_CRC_MISMATCH frame flagged? RadioLib's readData() reports that error
+// for a payload CRC error (CRC_ERR) AND for a header error without a valid header (HEADER_ERR and
+// not HEADER_VALID) - two different causes, so the IRQ flags are checked with the same rule.
+// "irq" must come from getIrqFlags() read before readData() (it clears the flags). The chip-
+// specific bit positions come from RadioLib's IRQ map; if the chip driver does not support IRQ
+// flags (getIrqFlags() returns the "unsupported" error code) or has no such flag, the result is 0.
+uint8_t RadioLibWrapper::classifyCrcError(uint32_t irq) {
+  if (irq == (uint32_t)RADIOLIB_ERR_UNSUPPORTED) return 0;
+  const uint32_t m_crc = _radio->getIrqMapped(1UL << RADIOLIB_IRQ_CRC_ERR);
+  const uint32_t m_hdr_err = _radio->getIrqMapped(1UL << RADIOLIB_IRQ_HEADER_ERR);
+  const uint32_t m_hdr_ok = _radio->getIrqMapped(1UL << RADIOLIB_IRQ_HEADER_VALID);
+  if (m_crc && (irq & m_crc)) return 1;
+  if (m_hdr_err && (irq & m_hdr_err) && !(irq & m_hdr_ok)) return 2;
+  return 0;
+}
+
+// mups: remember the latest CRC-error frames (RSSI, SNR, length, first bytes) to help identify who
+// sends them. Uses _last_snr / _last_rssi, which recvRaw() has just read from the chip. "bytes" is
+// the receive buffer: RadioLib's readData() copies the frame into it before reporting a CRC error,
+// so the content is there, but it may be corrupted.
+void RadioLibWrapper::rxErrLogAdd(uint8_t cls, int pkt_len, const uint8_t* bytes) {
+  RxErrRec& r = _rx_err_log[_rx_err_log_next];
+  r.t_ms = millis();
+  r.rssi = (int16_t)(_last_rssi < 0 ? _last_rssi - 0.5f : _last_rssi + 0.5f);
+  float s4 = _last_snr * 4.0f;
+  if (s4 > 127.0f) s4 = 127.0f;
+  if (s4 < -127.0f) s4 = -127.0f;
+  r.snr4 = (int8_t)(s4 < 0 ? s4 - 0.5f : s4 + 0.5f);
+  r.cls = cls;
+  r.len = (uint16_t)pkt_len;
+  for (int i = 0; i < 4; i++) r.b[i] = (bytes && i < pkt_len) ? bytes[i] : 0;
+  _rx_err_log_next = (_rx_err_log_next + 1) % RX_ERR_LOG_SIZE;
+  if (_rx_err_log_n < RX_ERR_LOG_SIZE) _rx_err_log_n++;
+}
+
+bool RadioLibWrapper::getRxErrLast(uint8_t idx, uint32_t* age_s, int* rssi, int* snr10, int* len, uint8_t* cls, uint8_t* b4) const {
+  if (idx >= _rx_err_log_n) return false;
+  const RxErrRec& r = _rx_err_log[(_rx_err_log_next + RX_ERR_LOG_SIZE - 1 - idx) % RX_ERR_LOG_SIZE];
+  *age_s = (uint32_t)(millis() - r.t_ms) / 1000;
+  *rssi = r.rssi;
+  *snr10 = (int)r.snr4 * 10 / 4;   // tenths of dB, e.g. -10 quarter dB -> -25 = -2.5 dB
+  *len = r.len;
+  *cls = r.cls;
+  for (int i = 0; i < 4; i++) b4[i] = r.b[i];
+  return true;
+}
+
 int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   int len = 0;
   if (state & STATE_INT_READY) {
@@ -392,18 +452,36 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
       len = _radio->getPacketLength();
       if (len > 0) {
         if (len > sz) { len = sz; }
+        const int pkt_len = len;   // mups: kept for the length histogram (len is zeroed on a read error)
         // PowerSaving variant
         _last_snr = _radio->getSNR();
         _last_rssi = _radio->getRSSI();
         _last_metrics_valid = true;
+        const uint32_t rx_irq = _radio->getIrqFlags();   // mups: read before readData(), which clears the flags
         int err = _radio->readData(bytes, len);
         if (err != RADIOLIB_ERR_NONE) {
           MESH_DEBUG_PRINTLN("RadioLibWrapper: error: readData(%d)", err);
           len = 0;
           n_recv_errors++;
+          // mups: classify the error. RADIOLIB_ERR_CRC_MISMATCH (-7) = frame was received but
+          // its payload CRC failed (collision / weak signal / foreign signal); anything else
+          // (e.g. -705/-706/-707 SPI errors) points at the radio hardware or driver instead.
+          if (err == RADIOLIB_ERR_CRC_MISMATCH) {
+            n_recv_err_crc++;
+            // split by what the chip flagged: payload CRC (1) / header error (2) / unknown (0)
+            const uint8_t why = classifyCrcError(rx_irq);
+            if (why == 1) { n_recv_err_pay++; rxHistAdd(1, pkt_len); }
+            else if (why == 2) { n_recv_err_hdr++; rxHistAdd(2, pkt_len); }
+            else { n_recv_err_unk++; }
+            rxErrLogAdd(why, pkt_len, bytes);   // mups: for "get rx.errors last"
+          } else {
+            n_recv_err_other++;
+            _last_recv_err_other = (int16_t)err;
+          }
         } else {
         //  Serial.print("  readData() -> "); Serial.println(len);
           n_recv++;
+          rxHistAdd(0, pkt_len);
         }
       }
     }
