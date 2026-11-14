@@ -62,10 +62,13 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
         // Last forwarding hop before the TRACE destination: the destination does not forward,
         // so a retry could never be cancelled by overhearing a downstream forward. To avoid
-        // flooding the destination, exhaust the retry budget now (no retransmissions from
-        // this hop). Higher layers or the sender must retry the entire TRACE if needed.
+        // flooding the destination, send it once without retransmissions from this hop.
+        // Higher layers or the sender must retry the entire TRACE if needed.
+        // no_retry instead of pre-setting sending_attempts = max: a pre-set counter made the
+        // first send look like a resend, so it went through the resend LBT gate (IRQ or RSSI
+        // margin over the noise floor) instead of the normal one and was counted as a resend.
         if (offset + (1 << path_sz) >= len) {
-          pkt->sending_attempts = getMaxResendAttempts();
+          pkt->no_retry = true;
         }
 
         uint32_t d = getDirectRetransmitDelay(pkt);
