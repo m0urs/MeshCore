@@ -1,4 +1,3 @@
-#include <helpers/CliTrim.h>
 #include "SensorMesh.h"
 #include <helpers/RoutingPolicy.h>
 #include <helpers/sensors/LPPDataHelpers.h>
@@ -468,8 +467,6 @@ void SensorMesh::handleCommand(ClientInfo* from, uint32_t sender_timestamp, char
     reply += 3;
     command += 3;
   }
-
-  mupsTrimCommandTail(command);   // mups: ignore trailing blanks (see helpers/CliTrim.h)
 
   // first, see if this is a custom-handled CLI command (ie. in main.cpp)
   if (handleCustomCommand(sender_timestamp, command, reply)) {

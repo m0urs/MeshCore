@@ -301,11 +301,6 @@ longer exist; credentials have to be set again with `set wifi.ssid` /
 Same as mups17 for PR #3536, PR #3260, PR #2834 and PR #1349 – see
 [MUPS17.md](https://github.com/m0urs/MeshCore/blob/mups17-release/MUPS17.md#changed-behaviour).
 
-**CLI: trailing blanks are ignored (Repeater, Room Server, Sensor).** Blanks, tabs and line ends at the end of a
-command are cut off before the command is evaluated, so `get txdelay ` works like `get txdelay` (before, many commands
-were rejected as unknown because they are matched against the whole text). Exception: `password …` and
-`set guest.password …` are left exactly as typed. Companions are not changed. The code is in `src/helpers/CliTrim.h`.
-
 **Packet filter: `filter age` also applies to the future (Repeater, since mups18-2).** Taken over from Dutch-MeshCore (`47d3d2de`). Up to mups18-1 the age limit only dropped group texts stamped *before* the limit; a stamp in the future was never counted as old. Now a group text whose timestamp is more than the limit away from the repeater's clock is dropped in **either** direction. Example with `filter age 30` (the mups default): a message from a phone whose clock runs 40 minutes ahead is now dropped (and counted under `filter stats age`), before it was forwarded. Reason given by the Dutch project: a stamp set days into the future would otherwise never age out. Only relevant once the filter is on and `filter dryrun` is off; with the defaults (filter off, dry-run on) nothing is dropped. Code: `MessageAge::outsideLimit()` (was `tooOld()`), `docs/packet_filter_reference.md` describes it.
 
 ---
