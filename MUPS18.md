@@ -5,7 +5,7 @@ Branch `mups18` is **generated** by `build-mups18.sh` and force-pushed on every
 rebuild – never commit to it directly. Releases are git tags `mups18-<n>`;
 the firmware reports them as `v1.18.0.mups<n>` (test builds: `v1.18.0.dev-<hash>`).
 
-> **Status:** latest release is `mups18-2` (first release: `mups18-1`; see [Release history](#release-history)).
+> **Status:** latest release is `mups18-3` (first release: `mups18-1`; see [Release history](#release-history)).
 > When updating from mups17, note that WiFi credentials have to be set again
 > (`set wifi.ssid` / `set wifi.pwd`, see below).
 
@@ -68,6 +68,15 @@ Differences to the mups17 port:
   met a busy channel was sent immediately instead of waiting. In the official
   v1.18.0 a queued packet only leaves the queue by being sent, so the situation
   does not arise there.
+- **TRACE packets (new in mups18-3, contributed by Sebastian van de Meer in
+  [#25](https://github.com/m0urs/MeshCore/pull/25) and [#26](https://github.com/m0urs/MeshCore/pull/26)):**
+  a queued resend of a TRACE forward is now cancelled when the downstream forward
+  is overheard. Before, the TRACE branch never reached the cancel check, so every
+  relay in the middle of a trace path re-sent each trace up to `max.resend` times.
+  The last forwarding hop before the trace destination now sends once through the
+  normal channel check; before, it was treated as a resend (resend channel check,
+  counted in `get max.resend`). Both issues are in upstream PR #2670 as well and
+  were reported there.
 
 ### DMC packet filter
 
@@ -364,3 +373,4 @@ Set in `examples/simple_repeater/MyMesh.cpp`, block `// ---- mups: own defaults`
 |---|---|---|
 | `mups18-1` | 2026-10-28 | PowerSaving-v18 (MeshCore v1.18.0) + PR #1349, #2834, #3260, #3536, #2586 + PR #2670 (partial) + DMC packet filter + airtime reserve + own defaults |
 | `mups18-2` | 2026-11-06 | Same base and PRs as `mups18-1`, with PowerSaving-v18 as of 2026-11-04. New in the repeater: `get rx.errors` (`snr`, `rssi`, `len`, `last`), `get cad` with blocked and forced counters, fix of the busy-wait timer in the channel check (PR #2670 interplay), trailing blanks in CLI commands are ignored (Repeater, Room Server, Sensor). Changed defaults (new install only): `advert.interval` 238 min (was 240), `agc.reset.interval` 0 = off (official default; was 12 s), filter hop limit for REQ, RESPONSE and ANON_REQ 5 (was 6). Packet filter: `filter age` now also drops messages stamped in the future (Dutch-MeshCore `47d3d2de`, see Changed behaviour). Docs: `MUPS18-HOWTO.md`, notes on diagnosing receive errors. |
+| `mups18-3` | 2026-11-15 | Same PRs as `mups18-2`, with [PowerSaving-v18](https://github.com/IoTThinks/MeshCore/tree/PowerSaving-v18) as of 2026-11-14 (companion GPS follows `powersaving`, companion CLI `gps` commands, GPS fix for GAT562 30S, INA228 support). **Removed:** the trailing-blank trim of `mups18-2` – it broke official commands that need a trailing blank ("Remove all neighbours" in the app = `neighbor.remove `, `set owner.info ` with an empty value). PR #2670 port: TRACE resends are cancelled when the downstream forward is overheard, the last TRACE hop sends once through the normal channel check (contributed by Sebastian van de Meer). |
