@@ -188,6 +188,9 @@ private:
   unsigned long outbound_expiry, outbound_start, total_air_time, rx_air_time;
   unsigned long next_tx_time;
   unsigned long cad_busy_start;
+  // mups: carrier-sense statistics of checkSend()
+  uint32_t n_cad_blocked = 0;   // busy episodes: a send attempt found the channel busy and had to wait
+  uint32_t n_cad_forced = 0;    // transmissions started anyway after the max busy duration (CAD timeout)
   unsigned long radio_nonrx_start;
   unsigned long next_floor_calib_time, next_agc_reset_time;
   bool  prev_isrecv_mode;
@@ -282,6 +285,9 @@ public:
   unsigned long getTotalAirTime() const { return total_air_time; }
   unsigned long getReceiveAirTime() const {return rx_air_time; }
   unsigned long getRemainingTxBudget() const { return tx_budget_ms; }
+  uint32_t getNumCadBlocked() const { return n_cad_blocked; }   // mups
+  uint32_t getNumCadForced() const { return n_cad_forced; }     // mups
+  void resetCadStats() { n_cad_blocked = n_cad_forced = 0; }    // mups: called from the repeater's clearStats()
   uint32_t getNumSentFlood() const { return n_sent_flood; }
   uint32_t getNumSentDirect() const { return n_sent_direct; }
   uint32_t getNumRecvFlood() const { return n_recv_flood; }
