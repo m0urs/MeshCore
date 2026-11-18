@@ -37,6 +37,7 @@
 #include <helpers/RoutingPolicy.h>
 #include "RateLimiter.h"
 #include "Filter.h"
+#include "ScopedReserve.h"
 
 #ifdef WITH_BRIDGE
 extern AbstractBridge* bridge;
@@ -102,6 +103,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   bool region_load_active;
   unsigned long dirty_contacts_expiry;
   Filter _filter;
+  ScopedReserve _scoped_reserve;   // mups
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
