@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #endif
 #include <Mesh.h>
+#include <helpers/StatsFormatHelper.h>
 
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
@@ -2212,7 +2213,9 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
 #endif
 
-  if (memcmp(command, "set max.resend ", 15) == 0) {   // mups: repeated sending (PR #2670)
+  // repeated sending (feature): same command and reply format as the CommonCLI nodes
+  // (repeaters/chat), so the app's CLI passthrough behaves identically everywhere.
+  if (memcmp(command, "set max.resend ", 15) == 0) {
     int v = atoi(&command[15]);
     if (v < 0 || v > 3) {
       strcpy(reply, "ERROR: max.resend must be 0-3");
@@ -2224,7 +2227,10 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
   if (strcmp(command, "get max.resend") == 0) {
-    sprintf(reply, "> %d", (int)_prefs.max_resend_attempts);
+    sprintf(reply, "> %d", (uint32_t)_prefs.max_resend_attempts);
+    if (_prefs.max_resend_attempts) {   // plain "> 0" when resends are disabled
+      StatsFormatHelper::formatResendRatio(reply, getNumResentDirect(), getNumSentDirect());
+    }
     return true;
   }
 
