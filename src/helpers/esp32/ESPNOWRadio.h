@@ -30,6 +30,15 @@ public:
   uint32_t getPacketsRecv() const { return n_recv; }
   uint32_t getPacketsSent() const { return n_sent; }
   uint32_t getPacketsRecvErrors() const { return n_recv_errors; }
+  // mups: ESP-NOW does not classify errors; stubs keep the common repeater CLI compiling
+  uint32_t getPacketsRecvErrCrc() const { return 0; }
+  uint32_t getPacketsRecvErrOther() const { return n_recv_errors; }
+  uint32_t getPacketsRecvErrPay() const { return 0; }   // mups: no CRC split
+  uint32_t getPacketsRecvErrHdr() const { return 0; }
+  uint32_t getPacketsRecvErrUnk() const { return 0; }
+  int16_t getLastRecvErrOther() const { return 0; }
+  uint32_t getRxHist(uint8_t kind, uint8_t cls, uint8_t bucket) const { return 0; }   // mups: no histograms
+  bool getRxErrLast(uint8_t, uint32_t*, int*, int*, int*, uint8_t*, uint8_t*) const { return false; }   // mups: no error log
   void resetStats() { n_recv = n_sent = n_recv_errors = 0; }
 
   virtual float getLastRSSI() const override;

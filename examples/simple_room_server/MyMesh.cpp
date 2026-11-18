@@ -485,7 +485,8 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       mesh::Utils::sha256((uint8_t *)&ack_hash, 4, data, 5 + strlen((char *)&data[5]), client->id.pub_key,
                           PUB_KEY_SIZE);
 
-      uint8_t temp[166];
+      // 5-byte datagram header + 3-byte reflected CLI prefix + 160-byte reply text + NUL
+      uint8_t temp[169];
       bool send_ack;
       if (flags == TXT_TYPE_CLI_DATA || flags == TXT_TYPE_CLI_COMMAND) {
         if (client->isAdmin()) {
@@ -668,7 +669,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   recv_pkt_region = NULL;
 
   // defaults
-  _prefs.airtime_factor = 1.0;
+  _prefs.airtime_factor = 9.0;   // mups: 10% duty cycle (EU regulation)
   _prefs.rx_delay_base = 0.0f;   // off by default, was 10.0
   _prefs.tx_delay_factor = 0.5f; // was 0.25f;
   _prefs.direct_tx_delay_factor = 0.2f; // was zero
