@@ -98,6 +98,17 @@ dry-run on. A repeater that already has a stored `/filter_prefs` keeps its curre
 **5** hops (6 in mups18-1); all other packet types have no filter hop limit (`flood.max` applies). The filter
 stays off and in dry-run until you switch it on.
 
+**What the hop limit for 00, 01 and 07 affects.** These types are what the app sends as flood whenever no
+path is known: path discovery (always a flooded `REQ` with a telemetry request), status, telemetry and other
+requests (`REQ`), and the login (`ANON_REQ`). This applies to every contact, not only to repeaters. With the
+filter on and `filter dryrun off`, a repeater does not forward these floods once they have passed 5 repeaters;
+messages (`TXT_MSG`) and other types are forwarded up to `flood.max`. Replies to flooded requests come back
+as path return (`PATH`, type 08), which has no filter hop limit. The limit only matters if it is lower than
+`flood.max` (checked first); for floods without region, `flood.max.unscoped` applies before the filter anyway.
+The value 5 is deliberate: requests and responses are a large share of the forwarded traffic, and repeaters
+more than 5 hops away cannot be administered reliably anyway. To allow more, set `filter hops 0 <n>`,
+`filter hops 1 <n>` and `filter hops 7 <n>` on the repeater.
+
 Not taken over from `dmc-dev`: `dc.gate` / true TX duty window, the region fix for
 transport code 0, the companion receive filter, companion SNMP / OTA – they are
 outside the repeater packet filter.
